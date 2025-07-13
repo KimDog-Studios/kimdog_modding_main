@@ -1,3 +1,4 @@
+"use client";
 import { notFound } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import Image from "next/image";
