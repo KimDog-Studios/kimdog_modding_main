@@ -1,24 +1,28 @@
 "use client";
-import { notFound } from "next/navigation";
+import { notFound, useParams } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import products from "../../config/ProductsConfig";
 import NavBar from "@/app/components/NavBar";
 import CircularProgress from "@mui/material/CircularProgress";
 
-// ✅ FIX: remove custom interface and use correct type directly
-export default function ProductPage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  const product = products.find((p) => p.id === params.id);
+export default function ProductPage() {
+  const params = useParams();
+  const productId = params?.id as string;
 
-  if (!product) {
-    return notFound();
-  }
+  const product = products.find((p) => p.id === productId);
 
   const [loading, setLoading] = useState(true);
+
+  // Prevent rendering if product doesn't exist (simulate notFound)
+  useEffect(() => {
+    if (!product) {
+      notFound();
+    }
+  }, [product]);
+
+  if (!product) return null;
+
   const [selectedImage, setSelectedImage] = useState(product.image);
   const [quantity, setQuantity] = useState(1);
   const maxQuantity = product.price > 0 ? 2 : 10;
