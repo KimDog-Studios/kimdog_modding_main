@@ -16,19 +16,22 @@ export default function ThankYouPage() {
   const [user, setUser] = useState<User | null>(null);
   const [status, setStatus] = useState<"success" | "error" | null>(null);
 
+  // Monitor auth state
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (!currentUser) {
         router.push("/login");
       } else {
         setUser(currentUser);
       }
     });
-
     return () => unsubscribe();
-  }, []);
+  }, [router]);
 
+  // Load productId and save purchase when user and productId are ready
   useEffect(() => {
+    if (!user) return; // Wait for user to be loaded
+
     const storedId = localStorage.getItem("purchasedProductId");
 
     if (storedId) {
@@ -37,7 +40,7 @@ export default function ThankYouPage() {
       if (foundProduct) {
         setProduct(foundProduct);
 
-        // 🎉 Confetti animation 5 times
+        // Confetti animation 5 times
         for (let i = 0; i < 5; i++) {
           setTimeout(() => {
             confetti({
@@ -49,15 +52,14 @@ export default function ThankYouPage() {
           }, i * 400);
         }
 
-        // 🧠 Save purchase to Firestore
+        // Save entire product data to Firestore
         const saveToFirestore = async () => {
           try {
             await addDoc(collection(db, "purchases"), {
-              userId: auth.currentUser?.uid,
-              email: auth.currentUser?.email,
-              productId: foundProduct.id,
-              productName: foundProduct.name,
+              userId: user.uid,
+              email: user.email,
               timestamp: new Date().toISOString(),
+              ...foundProduct, // Spread all product properties here
             });
             setStatus("success");
           } catch (error) {
@@ -72,7 +74,7 @@ export default function ThankYouPage() {
     }
 
     setTimeout(() => setLoaded(true), 200);
-  }, []);
+  }, [user]);
 
   if (!loaded || !user) {
     return (
