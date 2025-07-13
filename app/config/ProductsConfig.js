@@ -8,6 +8,7 @@ const products = [
     description: 'Professional-quality reshade preset to enhance your game visuals with vibrant colors and balanced lighting.',
     author: "KimDog Studios",
     game: "ATS & ETS2",
+    downloadUrl: "kimdog-preset",
   },
   {
     id: "kimdogs-drift-car-pack",
@@ -17,6 +18,7 @@ const products = [
     description: 'A pack of high-performance drift cars for thrilling gameplay and customization.',
     author: "KimDog Studios",
     game: "Assetto Corsa",
+    downloadUrl: "ac-drift-car-pack",
   },
   {
     id: "kimdogs-mega-mod",
@@ -26,6 +28,7 @@ const products = [
     description: 'An exciting mod pack that adds new features and improves gameplay experience.',
     author: "KimDog Studios",
     game: "American Truck Simulator",
+    downloadUrl: "ats-kimdog-mega-mod",
   },
   {
     id: "kimdogs-mega-map",
@@ -35,6 +38,7 @@ const products = [
     description: 'Explore new territories with this large and detailed map expansion.',
     author: "KimDog Studios",
     game: "American Truck Simulator",
+    downloadUrl: "ats-kimdog-mega-map",
   },
 ];
 
