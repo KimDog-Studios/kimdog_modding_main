@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import NavigationBar from "./components/NavBar"; // confirm NavBar import path
-import Products from "./components/Products";
+import NavigationBar from "./components/NavBar/NavBar"; // confirm NavBar import path
+import Products from "./components/Products/Products";
 import LoadingScreen from "./components/LoadingScreen";
 import { auth } from "./lib/firebase"; // confirm path
 import { onAuthStateChanged, User, signOut } from "firebase/auth";

@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import NavBar from "@/app/components/NavBar";
+import NavBar from "@/app/components/NavBar/NavBar";
 import confetti from "canvas-confetti";
 import products from "../../config/ProductsConfig";
 import { auth, db } from "../../lib/firebase";

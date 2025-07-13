@@ -15,7 +15,7 @@ import {
 } from "firebase/auth";
 import { auth } from "../lib/firebase";
 import { useRouter } from "next/navigation";
-import NavBar from "@/app/components/NavBar";
+import NavBar from "@/app/components/NavBar/NavBar";
 
 import {
   Box,

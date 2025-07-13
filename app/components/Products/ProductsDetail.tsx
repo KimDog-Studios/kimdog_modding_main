@@ -1,8 +1,8 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import products from "../config/ProductsConfig";
-import LoadingScreen from "./LoadingScreen";
+import products from "../../config/ProductsConfig";
+import LoadingScreen from "../LoadingScreen";
 
 import { getFirestore, collection, query, where, getDocs } from "firebase/firestore";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
