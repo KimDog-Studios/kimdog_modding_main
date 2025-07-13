@@ -6,8 +6,8 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'sw
 const jetBrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-jetbrains', display: 'swap' })
 
 export const metadata: Metadata = {
-  title: 'Downloads - KimDog Modding',
-  description: "Downloads page for KimDog's modding website",
+  title: 'KimDog Modding',
+  description: "KimDog's modding website",
 }
 
 export default function RootLayout({
