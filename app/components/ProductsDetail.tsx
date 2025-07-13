@@ -4,23 +4,59 @@ import { useParams, useNavigate } from "react-router-dom";
 import products from "../config/ProductsConfig";
 import LoadingScreen from "./LoadingScreen";
 
+import { getFirestore, collection, query, where, getDocs } from "firebase/firestore";
+import { getAuth, onAuthStateChanged, User } from "firebase/auth";
+
 function ProductDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
+  const [ownedProductIds, setOwnedProductIds] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 1500);
-    return () => clearTimeout(timer);
-  }, []);
+  const [user, setUser] = useState<User | null>(null);
 
   const product = products.find((p) => p.id.toString() === id);
 
-  if (loading) {
-    return <LoadingScreen message="Loading product details..." />;
-  }
+  useEffect(() => {
+    const auth = getAuth();
+    const db = getFirestore();
+
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setUser(currentUser);
+      if (!currentUser) {
+        setOwnedProductIds([]);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const purchasesRef = collection(db, "purchases");
+        const q = query(purchasesRef, where("userId", "==", currentUser.uid));
+        const snapshot = await getDocs(q);
+
+        const ownedIds: string[] = [];
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          if (data.id) {
+            ownedIds.push(data.id);
+          }
+        });
+
+        setOwnedProductIds(ownedIds);
+      } catch (err) {
+        setError("Failed to load owned products.");
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  if (loading) return <LoadingScreen message="Loading product details..." />;
 
   if (!product) {
     return (
@@ -36,11 +72,17 @@ function ProductDetail() {
     );
   }
 
+  const isOwned = ownedProductIds.includes(product.id);
+
   const handleAddToCart = () => {
+    if (isOwned) {
+      alert("You already own this product.");
+      return;
+    }
     if (product.price === 0) {
       navigate("/thankyou");
     } else {
-      // Placeholder for actual cart logic
+      // TODO: implement actual cart addition logic here
       alert(`Added ${quantity} of ${product.name} to cart.`);
     }
   };
@@ -81,15 +123,29 @@ function ProductDetail() {
               setQuantity(Math.min(10, Math.max(1, Number(e.target.value))))
             }
             className="w-20 text-black rounded px-2 py-1"
+            disabled={isOwned}
           />
         </div>
 
         <button
           onClick={handleAddToCart}
-          className="bg-sky-500 hover:bg-sky-600 text-white px-6 py-2 rounded-xl transition"
+          disabled={isOwned}
+          className={`px-6 py-2 rounded-xl transition ${
+            isOwned
+              ? "bg-gray-600 cursor-not-allowed text-gray-400"
+              : "bg-sky-500 hover:bg-sky-600 text-white"
+          }`}
         >
-          {product.price === 0 ? "Get for Free" : "Add to Cart"}
+          {isOwned ? "Owned" : product.price === 0 ? "Get for Free" : "Add to Cart"}
         </button>
+
+        {isOwned && (
+          <p className="mt-4 text-green-400 font-semibold">
+            You already own this product.
+          </p>
+        )}
+
+        {error && <p className="mt-4 text-red-500">{error}</p>}
       </div>
     </div>
   );

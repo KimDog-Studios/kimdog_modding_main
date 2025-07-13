@@ -2,9 +2,11 @@
 import { notFound, useParams, useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import Image from "next/image";
-import products from "../../config/ProductsConfig";
 import NavBar from "@/app/components/NavBar";
 import CircularProgress from "@mui/material/CircularProgress";
+import { getFirestore, collection, query, where, getDocs } from "firebase/firestore";
+import { getAuth, onAuthStateChanged, signOut, User } from "firebase/auth";
+import products from "../../config/ProductsConfig";
 
 export default function ProductPage() {
   const params = useParams();
@@ -14,6 +16,9 @@ export default function ProductPage() {
   const product = products.find((p) => p.id === productId);
 
   const [loading, setLoading] = useState(true);
+  const [ownedProductIds, setOwnedProductIds] = useState<string[]>([]);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null);  // Track current user
 
   useEffect(() => {
     if (!product) {
@@ -21,11 +26,45 @@ export default function ProductPage() {
     }
   }, [product]);
 
-  if (!product) return null;
+  useEffect(() => {
+    const auth = getAuth();
+    const db = getFirestore();
 
-  const [selectedImage, setSelectedImage] = useState(product.image);
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setUser(user);
+      if (!user) {
+        setOwnedProductIds([]);
+        setAuthLoading(false);
+        return;
+      }
+
+      try {
+        const purchasesRef = collection(db, "purchases");
+        const q = query(purchasesRef, where("userId", "==", user.uid));
+        const snapshot = await getDocs(q);
+
+        const ownedIds: string[] = [];
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          if (data.id) ownedIds.push(data.id);
+        });
+
+        setOwnedProductIds(ownedIds);
+      } catch (error) {
+        console.error("Error fetching owned products:", error);
+      } finally {
+        setAuthLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const isOwned = ownedProductIds.includes(productId);
+
+  const [selectedImage, setSelectedImage] = useState(product?.image || "");
   const [quantity, setQuantity] = useState(1);
-  const maxQuantity = product.price !== undefined && product.price > 0 ? 2 : 10;
+  const maxQuantity = product?.price !== undefined && product.price > 0 ? 2 : 10;
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 1500);
@@ -47,155 +86,182 @@ export default function ProductPage() {
     });
   };
 
-  const displayPrice =
-    product.price !== undefined && product.price > 0
-      ? `$${product.price.toFixed(2)}`
-      : "Free";
+  if (!product) return null;
+
+  const displayPrice = isOwned
+    ? "Owned"
+    : product.price !== undefined && product.price > 0
+    ? `$${product.price.toFixed(2)}`
+    : "Free";
 
   const handleAddToCart = () => {
+    if (isOwned) {
+      alert("You already own this product.");
+      return;
+    }
     alert(`${quantity} x ${product.name} added to cart!`);
-    // Implement actual cart logic here
   };
 
   const handleAddToLibrary = () => {
-    // Store only product ID for thank you page
+    if (isOwned) {
+      alert("You already own this product.");
+      return;
+    }
     localStorage.setItem("purchasedProductId", product.id);
     router.push("/product/thankyou");
   };
 
+  // Logout function to pass to NavBar
+  const handleLogout = async () => {
+    const auth = getAuth();
+    await signOut(auth);
+    router.push("/login"); // or wherever you want to redirect on logout
+  };
+
+  if (loading || authLoading) {
+    return (
+      <div className="flex flex-col justify-center items-center min-h-screen space-y-4 text-white">
+        <CircularProgress color="primary" />
+        <span className="text-lg font-medium">Loading product details...</span>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen text-white flex flex-col">
-      <NavBar />
+      {/* Pass user and onLogout to NavBar */}
+      <NavBar user={user} onLogout={handleLogout} />
 
-      {loading ? (
-        <div className="flex flex-col justify-center items-center min-h-screen space-y-4 text-white">
-          <CircularProgress color="primary" />
-          <span className="text-lg font-medium">Loading product details...</span>
-        </div>
-      ) : (
-        <main className="flex-grow max-w-7xl mx-auto px-6 py-12 grid grid-cols-1 md:grid-cols-2 gap-12">
-          {/* Product image */}
-          <div>
-            <div className="border rounded-lg overflow-hidden shadow-lg">
-              <Image
-                src={selectedImage}
-                alt={product.name}
-                width={600}
-                height={600}
-                className="object-cover w-full h-full"
-                priority
-              />
-            </div>
-
-            <div className="flex mt-4 space-x-4">
-              {[product.image].map((img, i) => (
-                <button
-                  key={i}
-                  className={`w-20 h-20 rounded-md border ${
-                    selectedImage === img ? "border-sky-500" : "border-gray-700"
-                  } overflow-hidden focus:outline-none transition`}
-                  onClick={() => setSelectedImage(img)}
-                  aria-label={`Select image ${i + 1}`}
-                >
-                  <Image
-                    src={img}
-                    alt={`${product.name} thumbnail ${i + 1}`}
-                    width={80}
-                    height={80}
-                    className="object-cover"
-                  />
-                </button>
-              ))}
-            </div>
+      <main className="flex-grow max-w-7xl mx-auto px-6 py-12 grid grid-cols-1 md:grid-cols-2 gap-12">
+        {/* Product image */}
+        <div>
+          <div className="border rounded-lg overflow-hidden shadow-lg">
+            <Image
+              src={selectedImage}
+              alt={product.name}
+              width={600}
+              height={600}
+              className="object-cover w-full h-full"
+              priority
+            />
           </div>
 
-          {/* Product info */}
-          <section className="flex flex-col gap-8">
-            <div>
-              <h1 className="text-5xl font-extrabold mb-4">{product.name}</h1>
-              <p className="text-2xl text-sky-400 font-semibold mb-1">{displayPrice}</p>
+          <div className="flex mt-4 space-x-4">
+            {[product.image].map((img, i) => (
+              <button
+                key={i}
+                className={`w-20 h-20 rounded-md border ${
+                  selectedImage === img ? "border-sky-500" : "border-gray-700"
+                } overflow-hidden focus:outline-none transition`}
+                onClick={() => setSelectedImage(img)}
+                aria-label={`Select image ${i + 1}`}
+              >
+                <Image
+                  src={img}
+                  alt={`${product.name} thumbnail ${i + 1}`}
+                  width={80}
+                  height={80}
+                  className="object-cover"
+                />
+              </button>
+            ))}
+          </div>
+        </div>
 
-              <div className="flex items-center space-x-2 text-sm text-gray-300 mb-6">
-                <span>Made By: {product.author}</span>
-                {product.author === "KimDog Studios" && (
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-5 w-5 text-sky-500"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={3}
-                    aria-label="Verified author"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                )}
-              </div>
+        {/* Product info */}
+        <section className="flex flex-col gap-8">
+          <div>
+            <h1 className="text-5xl font-extrabold mb-4">{product.name}</h1>
+            <p className="text-2xl text-sky-400 font-semibold mb-1">{displayPrice}</p>
 
-              <p className="text-gray-300 mb-8 leading-relaxed">{product.description}</p>
-
-              {product.price !== undefined && product.price > 0 && (
-                <div className="flex items-center space-x-4 mb-4">
-                  <label htmlFor="quantity" className="font-semibold text-lg">
-                    Quantity:
-                  </label>
-                  <div className="flex items-center border rounded-md w-28 bg-[#1e293b]">
-                    <button
-                      onClick={decrement}
-                      className="px-4 py-2 text-lg font-bold hover:bg-sky-700 transition text-white"
-                      aria-label="Decrease quantity"
-                    >
-                      −
-                    </button>
-                    <input
-                      type="number"
-                      id="quantity"
-                      className="w-20 text-center bg-transparent outline-none text-white py-2"
-                      value={quantity}
-                      min={1}
-                      max={maxQuantity}
-                      onChange={(e) => {
-                        let val = Number(e.target.value) || 1;
-                        if (val > maxQuantity) {
-                          alert(`No more than ${maxQuantity} of this product can be added`);
-                          val = maxQuantity;
-                        }
-                        val = Math.max(1, val);
-                        setQuantity(val);
-                      }}
-                    />
-                    <button
-                      onClick={increment}
-                      className="px-4 py-2 text-lg font-bold hover:bg-sky-700 transition text-white"
-                      aria-label="Increase quantity"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
+            <div className="flex items-center space-x-2 text-sm text-gray-300 mb-6">
+              <span>Made By: {product.author}</span>
+              {product.author === "KimDog Studios" && (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5 text-sky-500"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={3}
+                  aria-label="Verified author"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
               )}
             </div>
 
-            {product.price !== undefined && product.price > 0 ? (
-              <button
-                type="button"
-                onClick={handleAddToCart}
-                className="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-5 rounded-md shadow-lg transition text-lg"
-              >
-                Add to cart
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleAddToLibrary}
-                className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-5 rounded-md shadow-lg transition text-lg"
-              >
-                Add to library
-              </button>
+            <p className="text-gray-300 mb-8 leading-relaxed">{product.description}</p>
+
+            {product.price !== undefined && product.price > 0 && !isOwned && (
+              <div className="flex items-center space-x-4 mb-4">
+                <label htmlFor="quantity" className="font-semibold text-lg">
+                  Quantity:
+                </label>
+                <div className="flex items-center border rounded-md w-28 bg-[#1e293b]">
+                  <button
+                    onClick={decrement}
+                    className="px-4 py-2 text-lg font-bold hover:bg-sky-700 transition text-white"
+                    aria-label="Decrease quantity"
+                  >
+                    −
+                  </button>
+                  <input
+                    type="number"
+                    id="quantity"
+                    className="w-20 text-center bg-transparent outline-none text-white py-2"
+                    value={quantity}
+                    min={1}
+                    max={maxQuantity}
+                    onChange={(e) => {
+                      let val = Number(e.target.value) || 1;
+                      if (val > maxQuantity) {
+                        alert(`No more than ${maxQuantity} of this product can be added`);
+                        val = maxQuantity;
+                      }
+                      val = Math.max(1, val);
+                      setQuantity(val);
+                    }}
+                  />
+                  <button
+                    onClick={increment}
+                    className="px-4 py-2 text-lg font-bold hover:bg-sky-700 transition text-white"
+                    aria-label="Increase quantity"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
             )}
-          </section>
-        </main>
-      )}
+          </div>
+
+          {isOwned ? (
+            <button
+              type="button"
+              disabled
+              className="w-full bg-gray-600 cursor-not-allowed text-white font-bold py-5 rounded-md shadow-lg transition text-lg"
+            >
+              You Own This Product
+            </button>
+          ) : product.price !== undefined && product.price > 0 ? (
+            <button
+              type="button"
+              onClick={handleAddToCart}
+              className="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-5 rounded-md shadow-lg transition text-lg"
+            >
+              Add to cart
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleAddToLibrary}
+              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-5 rounded-md shadow-lg transition text-lg"
+            >
+              Add to library
+            </button>
+          )}
+        </section>
+      </main>
     </div>
   );
 }

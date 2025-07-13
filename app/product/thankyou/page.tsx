@@ -87,7 +87,7 @@ export default function ThankYouPage() {
   if (!product) {
     return (
       <div className="min-h-screen flex flex-col justify-center items-center bg-white text-gray-900 p-8">
-        <NavBar />
+        <NavBar user={user} onLogout={() => auth.signOut()} />
         <h1 className="text-3xl font-bold mb-4">No product found</h1>
       </div>
     );
@@ -95,7 +95,7 @@ export default function ThankYouPage() {
 
   return (
     <div className="min-h-screen bg-white text-gray-900 flex flex-col">
-      <NavBar />
+      <NavBar user={user} onLogout={() => auth.signOut()} />
       <main className="flex-grow max-w-4xl mx-auto p-8 flex flex-col items-center text-center">
         <h1 className="text-5xl font-extrabold mb-6 text-sky-600">
           Thank you for your purchase!

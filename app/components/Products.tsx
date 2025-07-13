@@ -3,8 +3,7 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import products from "../config/ProductsConfig";
 
-// Firebase imports
-import { getFirestore, doc, getDoc } from "firebase/firestore";
+import { getFirestore, collection, query, where, getDocs } from "firebase/firestore";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 
 function Products() {
@@ -25,16 +24,20 @@ function Products() {
       }
 
       try {
-        const userDocRef = doc(db, "purchases", user.uid);
-        const userDocSnap = await getDoc(userDocRef);
+        const purchasesRef = collection(db, "purchases");
+        const q = query(purchasesRef, where("userId", "==", user.uid));
+        const snapshot = await getDocs(q);
 
-        if (userDocSnap.exists()) {
-          const data = userDocSnap.data();
-          const ownedIds: string[] = data.ownedProductIds || [];
-          setOwnedProductIds(ownedIds);
-        } else {
-          setOwnedProductIds([]);
-        }
+        const ownedIds: string[] = [];
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          // The product's id is stored in field 'id' in each purchase doc
+          if (data.id) {
+            ownedIds.push(data.id);
+          }
+        });
+
+        setOwnedProductIds(ownedIds);
       } catch (err) {
         setError("Failed to load owned products.");
         console.error("Firestore error:", err);
