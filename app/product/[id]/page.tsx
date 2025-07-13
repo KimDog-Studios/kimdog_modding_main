@@ -1,27 +1,16 @@
-"use client";
-import React, { useState, useEffect } from "react";
-import products from "../../config/ProductsConfig";
-import Image from "next/image";
 import { notFound } from "next/navigation";
+import React, { useEffect, useState } from "react";
+import Image from "next/image";
+import products from "../../config/ProductsConfig";
 import NavBar from "@/app/components/NavBar";
 import CircularProgress from "@mui/material/CircularProgress";
 
-interface ProductPageProps {
-  params: {
-    id: string;
-  };
-}
-
-function LoadingScreen() {
-  return (
-    <div className="flex flex-col justify-center items-center min-h-screen space-y-4 text-white">
-      <CircularProgress color="primary" />
-      <span className="text-lg font-medium">Loading product details...</span>
-    </div>
-  );
-}
-
-export default function ProductPage({ params }: ProductPageProps) {
+// ✅ FIX: remove custom interface and use correct type directly
+export default function ProductPage({
+  params,
+}: {
+  params: { id: string };
+}) {
   const product = products.find((p) => p.id === params.id);
 
   if (!product) {
@@ -29,6 +18,9 @@ export default function ProductPage({ params }: ProductPageProps) {
   }
 
   const [loading, setLoading] = useState(true);
+  const [selectedImage, setSelectedImage] = useState(product.image);
+  const [quantity, setQuantity] = useState(1);
+  const maxQuantity = product.price > 0 ? 2 : 10;
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 1500);
@@ -38,10 +30,6 @@ export default function ProductPage({ params }: ProductPageProps) {
       clearTimeout(fallbackTimer);
     };
   }, []);
-
-  const [selectedImage, setSelectedImage] = useState(product.image);
-  const [quantity, setQuantity] = useState(1);
-  const maxQuantity = product.price > 0 ? 2 : 10;
 
   const decrement = () => setQuantity((q) => Math.max(1, q - 1));
   const increment = () => {
@@ -56,17 +44,18 @@ export default function ProductPage({ params }: ProductPageProps) {
 
   const displayPrice = product.price > 0 ? `$${product.price.toFixed(2)}` : "Free";
 
-  // Outer wrapper with background + min height and nav always rendered here
   return (
     <div className="min-h-screen text-white flex flex-col">
       <NavBar />
 
-      {/* Main content or loading screen */}
       {loading ? (
-        <LoadingScreen />
+        <div className="flex flex-col justify-center items-center min-h-screen space-y-4 text-white">
+          <CircularProgress color="primary" />
+          <span className="text-lg font-medium">Loading product details...</span>
+        </div>
       ) : (
         <main className="flex-grow max-w-7xl mx-auto px-6 py-12 grid grid-cols-1 md:grid-cols-2 gap-12">
-          {/* Left: Product images */}
+          {/* Product image */}
           <div>
             <div className="border rounded-lg overflow-hidden shadow-lg">
               <Image
@@ -101,7 +90,7 @@ export default function ProductPage({ params }: ProductPageProps) {
             </div>
           </div>
 
-          {/* Right: Product details */}
+          {/* Product info */}
           <section className="flex flex-col gap-8">
             <div>
               <h1 className="text-5xl font-extrabold mb-4">{product.name}</h1>
