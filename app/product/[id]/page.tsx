@@ -1,5 +1,5 @@
 "use client";
-import { notFound, useParams } from "next/navigation";
+import { notFound, useParams, useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import products from "../../config/ProductsConfig";
@@ -8,13 +8,13 @@ import CircularProgress from "@mui/material/CircularProgress";
 
 export default function ProductPage() {
   const params = useParams();
+  const router = useRouter();
   const productId = params?.id as string;
 
   const product = products.find((p) => p.id === productId);
 
   const [loading, setLoading] = useState(true);
 
-  // Prevent rendering if product doesn't exist (simulate notFound)
   useEffect(() => {
     if (!product) {
       notFound();
@@ -25,7 +25,7 @@ export default function ProductPage() {
 
   const [selectedImage, setSelectedImage] = useState(product.image);
   const [quantity, setQuantity] = useState(1);
-  const maxQuantity = product.price > 0 ? 2 : 10;
+  const maxQuantity = product.price !== undefined && product.price > 0 ? 2 : 10;
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 1500);
@@ -47,7 +47,21 @@ export default function ProductPage() {
     });
   };
 
-  const displayPrice = product.price > 0 ? `$${product.price.toFixed(2)}` : "Free";
+  const displayPrice =
+    product.price !== undefined && product.price > 0
+      ? `$${product.price.toFixed(2)}`
+      : "Free";
+
+  const handleAddToCart = () => {
+    alert(`${quantity} x ${product.name} added to cart!`);
+    // Implement actual cart logic here
+  };
+
+  const handleAddToLibrary = () => {
+    // Store only product ID for thank you page
+    localStorage.setItem("purchasedProductId", product.id);
+    router.push("/product/thankyou");
+  };
 
   return (
     <div className="min-h-screen text-white flex flex-col">
@@ -120,52 +134,65 @@ export default function ProductPage() {
 
               <p className="text-gray-300 mb-8 leading-relaxed">{product.description}</p>
 
-              <div className="flex items-center space-x-4 mb-4">
-                <label htmlFor="quantity" className="font-semibold text-lg">
-                  Quantity:
-                </label>
-                <div className="flex items-center border rounded-md w-28 bg-[#1e293b]">
-                  <button
-                    onClick={decrement}
-                    className="px-4 py-2 text-lg font-bold hover:bg-sky-700 transition text-white"
-                    aria-label="Decrease quantity"
-                  >
-                    −
-                  </button>
-                  <input
-                    type="number"
-                    id="quantity"
-                    className="w-20 text-center bg-transparent outline-none text-white py-2"
-                    value={quantity}
-                    min={1}
-                    max={maxQuantity}
-                    onChange={(e) => {
-                      let val = Number(e.target.value) || 1;
-                      if (val > maxQuantity) {
-                        alert(`No more than ${maxQuantity} of this product can be added`);
-                        val = maxQuantity;
-                      }
-                      val = Math.max(1, val);
-                      setQuantity(val);
-                    }}
-                  />
-                  <button
-                    onClick={increment}
-                    className="px-4 py-2 text-lg font-bold hover:bg-sky-700 transition text-white"
-                    aria-label="Increase quantity"
-                  >
-                    +
-                  </button>
+              {product.price !== undefined && product.price > 0 && (
+                <div className="flex items-center space-x-4 mb-4">
+                  <label htmlFor="quantity" className="font-semibold text-lg">
+                    Quantity:
+                  </label>
+                  <div className="flex items-center border rounded-md w-28 bg-[#1e293b]">
+                    <button
+                      onClick={decrement}
+                      className="px-4 py-2 text-lg font-bold hover:bg-sky-700 transition text-white"
+                      aria-label="Decrease quantity"
+                    >
+                      −
+                    </button>
+                    <input
+                      type="number"
+                      id="quantity"
+                      className="w-20 text-center bg-transparent outline-none text-white py-2"
+                      value={quantity}
+                      min={1}
+                      max={maxQuantity}
+                      onChange={(e) => {
+                        let val = Number(e.target.value) || 1;
+                        if (val > maxQuantity) {
+                          alert(`No more than ${maxQuantity} of this product can be added`);
+                          val = maxQuantity;
+                        }
+                        val = Math.max(1, val);
+                        setQuantity(val);
+                      }}
+                    />
+                    <button
+                      onClick={increment}
+                      className="px-4 py-2 text-lg font-bold hover:bg-sky-700 transition text-white"
+                      aria-label="Increase quantity"
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
-            <button
-              type="button"
-              className="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-5 rounded-md shadow-lg transition text-lg"
-            >
-              Add to cart
-            </button>
+            {product.price !== undefined && product.price > 0 ? (
+              <button
+                type="button"
+                onClick={handleAddToCart}
+                className="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-5 rounded-md shadow-lg transition text-lg"
+              >
+                Add to cart
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleAddToLibrary}
+                className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-5 rounded-md shadow-lg transition text-lg"
+              >
+                Add to library
+              </button>
+            )}
           </section>
         </main>
       )}
