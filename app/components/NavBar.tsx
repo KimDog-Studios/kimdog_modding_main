@@ -1,15 +1,43 @@
-import React from 'react'
-import Image from 'next/image'
+"use client";
+import React, { useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
+
+interface LinkItem {
+  name: string;
+  href: string;
+  external?: boolean;
+  target?: string;
+}
 
 function NavBar() {
+  const [activeLink, setActiveLink] = useState<string>("Home");
+
+  const links: LinkItem[] = [
+    { name: "Home", href: "/" },
+    { name: "Catalog", href: "/" },
+    { name: "Contact", href: "/" },
+    {
+      name: "Access Downloads",
+      href: "https://downloads.kimdog-modding.co.uk/",
+      external: true,
+      target: "_blank",
+    },
+  ];
+
+  const handleClick = (name: string) => {
+    setActiveLink(name);
+  };
+
   return (
     <div>
-      {/* Container for search icon + logo + right icons */}
+      {/* Top bar with icons */}
       <div className="relative flex items-center pt-10 max-w-screen-xl mx-auto px-6">
         {/* Search icon far left */}
         <button
           aria-label="Search"
-          className="text-gray-300 hover:text-white focus:outline-none"
+          className="text-gray-300 hover:text-white focus:outline-none transition-transform transform hover:scale-110"
+          type="button"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -32,15 +60,17 @@ function NavBar() {
 
         {/* Logo centered absolutely */}
         <div className="absolute left-1/2 transform -translate-x-1/2">
-          <a href="/" className="flex items-center justify-center">
-            <Image
-              src="/logo.png"
-              alt="Logo"
-              width={300}
-              height={300}
-              className="rounded-full"
-            />
-          </a>
+          <Link href="/" onClick={() => handleClick("Home")}>
+            <div className="flex items-center justify-center text-gray-300 hover:text-white transition-transform transform focus:outline-none cursor-pointer">
+              <Image
+                src="/logo.png"
+                alt="Logo"
+                width={300}
+                height={300}
+                className="rounded-full"
+              />
+            </div>
+          </Link>
         </div>
 
         {/* Spacer to push right icons to the far right */}
@@ -51,7 +81,8 @@ function NavBar() {
           {/* Person icon */}
           <button
             aria-label="User Account"
-            className="text-gray-300 hover:text-white focus:outline-none"
+            className="text-gray-300 hover:text-white focus:outline-none transition-transform transform hover:scale-110"
+            type="button"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -64,12 +95,7 @@ function NavBar() {
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                d="M5.121 17.804A9 9 0 1118.88 6.196 9 9 0 015.12 17.804z"
-              />
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                d="M5.121 17.804A9 9 0 0118.88 6.196M12 12a4 4 0 100-8 4 4 0 000 8zm0 2c-4 0-7 2-7 4v2h14v-2c0-2-3-4-7-4z"
               />
             </svg>
           </button>
@@ -77,7 +103,8 @@ function NavBar() {
           {/* Car/Bag icon */}
           <button
             aria-label="Bag/Cart"
-            className="text-gray-300 hover:text-white focus:outline-none"
+            className="text-gray-300 hover:text-white focus:outline-none transition-transform transform hover:scale-110"
+            type="button"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -87,7 +114,6 @@ function NavBar() {
               stroke="currentColor"
               strokeWidth={2}
             >
-              {/* Example bag icon */}
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -99,22 +125,37 @@ function NavBar() {
       </div>
 
       {/* Nav links centered below */}
-      <div className="flex flex-row justify-center space-x-6 pt-6">
-        <a href="/" className="underline pt-10">
-          Home
-        </a>
-        <a href="/" className="hover:underline pt-10">
-          Catalog
-        </a>
-        <a href="/" className="hover:underline pt-10">
-          Contact
-        </a>
-        <a href="https://downloads.kimdog-modding.co.uk/" className="hover:underline pt-10" target="_blank" rel="noopener noreferrer">
-          Access Downloads
-        </a>
+      <div className="flex flex-row justify-center space-x-6 pt-15">
+        {links.map(({ name, href, external, target }) =>
+          external ? (
+            <a
+              key={name}
+              href={href}
+              target={target}
+              rel="noopener noreferrer"
+              className={`pt-3 cursor-pointer ${
+                activeLink === name ? "underline" : "hover:underline"
+              }`}
+              onClick={() => handleClick(name)}
+            >
+              {name}
+            </a>
+          ) : (
+            <Link
+              key={name}
+              href={href}
+              onClick={() => handleClick(name)}
+              className={`pt-3 cursor-pointer ${
+                activeLink === name ? "underline" : "hover:underline"
+              }`}
+            >
+              {name}
+            </Link>
+          )
+        )}
       </div>
     </div>
-  )
+  );
 }
 
-export default NavBar
+export default NavBar;
