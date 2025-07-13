@@ -21,7 +21,7 @@ const products = [
     downloadUrl: "ac-drift-car-pack",
   },
   {
-    id: "kimdogs-mega-mod",
+    id: "ats-kimdogs-mega-mod",
     name: "KimDog's Mega Mod",
     price: 0.00,
     image: '/kimdog.png',
@@ -31,7 +31,7 @@ const products = [
     downloadUrl: "ats-kimdog-mega-mod",
   },
   {
-    id: "kimdogs-mega-map",
+    id: "ats-kimdogs-mega-map",
     name: "KimDog's Mega Map",
     price: 0.00,
     image: '/kimdog.png',
