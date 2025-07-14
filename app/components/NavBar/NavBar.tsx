@@ -3,8 +3,9 @@ import Logo from "./Logo";
 import NavLinks from "./NavLinks";
 import SignInLink from "./SignInLink";
 import UserMenu from "./UserMenu";
-import CartButton from "./CartButton"; // import here
+import CartButton from "./CartButton";
 import { User } from "firebase/auth";
+import { usePathname } from "next/navigation";
 
 interface NavBarProps {
   user: User | null;
@@ -12,30 +13,32 @@ interface NavBarProps {
 }
 
 const NavBar: React.FC<NavBarProps> = ({ user, onLogout }) => {
-  const [activeLink, setActiveLink] = useState("Home");
+  const pathname = usePathname();
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
-  const handleLinkClick = (name: string) => {
-    setActiveLink(name);
+  const getActiveLinkName = () => {
+    if (pathname === "/") return "Home";
+    if (pathname.startsWith("/product/catalog")) return "Catalog";
+    if (pathname.startsWith("/contact")) return "Contact";
+    return ""; // Nothing will be marked active for unmatched paths (e.g., external links)
+  };
+
+  const activeLink = getActiveLinkName();
+
+  const handleLinkClick = () => {
     setDropdownOpen(false);
   };
 
   return (
     <header className="sticky top-0 z-50 bg-gradient-to-r from-purple-900 via-purple-800 to-purple-700/90 backdrop-blur-md shadow-xl border-b border-purple-700/30">
       <div className="max-w-screen-xl mx-auto px-6 py-4 flex flex-col">
-
-        {/* Top row: logo centered, right side with cart + user side-by-side */}
+        {/* Top row */}
         <div className="flex items-center justify-center relative">
-
-          {/* Logo centered */}
           <div className="absolute left-1/2 transform -translate-x-1/2">
-            <Logo onClick={() => handleLinkClick("Home")} />
+            <Logo onClick={handleLinkClick} />
           </div>
-
-          {/* Right side horizontal stack */}
           <div className="ml-auto flex items-center space-x-5 text-white">
-            <CartButton /> {/* Use cart button component */}
-
+            <CartButton />
             {user ? (
               <UserMenu
                 user={user}
@@ -49,7 +52,7 @@ const NavBar: React.FC<NavBarProps> = ({ user, onLogout }) => {
           </div>
         </div>
 
-        {/* Nav links below, centered */}
+        {/* Nav links */}
         <nav className="mt-8 flex justify-center space-x-8 text-white">
           <NavLinks activeLink={activeLink} onLinkClick={handleLinkClick} />
         </nav>
