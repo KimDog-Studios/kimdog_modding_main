@@ -1,10 +1,9 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import products from "../../config/ProductsConfig";
 import LoadingScreen from "../LoadingScreen";
 
-import { getFirestore, collection, query, where, getDocs } from "firebase/firestore";
+import { getFirestore, doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 
 function ProductDetail() {
@@ -16,8 +15,7 @@ function ProductDetail() {
   const [error, setError] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [user, setUser] = useState<User | null>(null);
-
-  const product = products.find((p) => p.id.toString() === id);
+  const [product, setProduct] = useState<any | null>(null);
 
   useEffect(() => {
     const auth = getAuth();
@@ -25,6 +23,7 @@ function ProductDetail() {
 
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
+
       if (!currentUser) {
         setOwnedProductIds([]);
         setLoading(false);
@@ -32,6 +31,7 @@ function ProductDetail() {
       }
 
       try {
+        // Fetch owned product IDs
         const purchasesRef = collection(db, "purchases");
         const q = query(purchasesRef, where("userId", "==", currentUser.uid));
         const snapshot = await getDocs(q);
@@ -45,8 +45,21 @@ function ProductDetail() {
         });
 
         setOwnedProductIds(ownedIds);
+
+        // Fetch product details from Firestore directly
+        if (id) {
+          const productDocRef = doc(db, "products", id);
+          const productSnapshot = await getDoc(productDocRef);
+
+          if (productSnapshot.exists()) {
+            const productData = productSnapshot.data();
+            setProduct({ ...productData, id: productSnapshot.id }); // Spread first, then id to avoid overwrite
+          } else {
+            setProduct(null);
+          }
+        }
       } catch (err) {
-        setError("Failed to load owned products.");
+        setError("Failed to load product details.");
         console.error(err);
       } finally {
         setLoading(false);
@@ -54,7 +67,7 @@ function ProductDetail() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [id]);
 
   if (loading) return <LoadingScreen message="Loading product details..." />;
 
@@ -80,7 +93,7 @@ function ProductDetail() {
       return;
     }
     if (product.price === 0) {
-      navigate("/thankyou");
+      navigate("/product/thankyou");
     } else {
       // TODO: implement actual cart addition logic here
       alert(`Added ${quantity} of ${product.name} to cart.`);
