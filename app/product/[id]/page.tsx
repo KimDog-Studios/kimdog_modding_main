@@ -1,19 +1,20 @@
 "use client";
 
-import { notFound, useParams, useRouter } from "next/navigation";
-import React, { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { useParams, useRouter, notFound } from "next/navigation";
 import Image from "next/image";
 import NavBar from "@/app/components/NavBar/NavBar";
-import CircularProgress from "@mui/material/CircularProgress";
+import LoadingScreen from "@/app/components/LoadingScreen"; // <-- import your new loading screen here
 import {
-  getFirestore,
   collection,
   query,
   where,
   getDocs,
+  doc,
+  getDoc,
 } from "firebase/firestore";
-import { getAuth, onAuthStateChanged, signOut, User } from "firebase/auth";
-import products from "../../config/ProductsConfig";
+import { onAuthStateChanged, signOut, User } from "firebase/auth";
+import { db, auth } from "../../lib/firebase";
 
 type Product = {
   id: string;
@@ -29,27 +30,47 @@ export default function ProductPage() {
   const router = useRouter();
   const productId = params?.id as string;
 
-  const product = products.find((p: Product) => p.id === productId);
-
+  const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
-  const [ownedProductIds, setOwnedProductIds] = useState<string[]>([]);
   const [authLoading, setAuthLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
-  const [cartItemsCount, setCartItemsCount] = useState(0); // You can replace this with actual cart context count
+  const [ownedProductIds, setOwnedProductIds] = useState<string[]>([]);
+  const [selectedImage, setSelectedImage] = useState<string>("");
+  const [quantity, setQuantity] = useState(1);
 
+  const maxQuantity = product?.price && product.price > 0 ? 2 : 10;
+
+  // Fetch product
   useEffect(() => {
-    if (!product) {
-      notFound();
+    async function fetchProduct() {
+      try {
+        const productDoc = await getDoc(doc(db, "products", productId));
+        if (!productDoc.exists()) {
+          notFound();
+          return;
+        }
+        const prodData = productDoc.data() as Product;
+        setProduct({ ...prodData, id: productDoc.id });
+        setSelectedImage(prodData.image);
+      } catch (error) {
+        console.error("Failed to fetch product", error);
+        notFound();
+      } finally {
+        setLoading(false);
+      }
     }
-  }, [product]);
+    if (productId) {
+      fetchProduct();
+    } else {
+      setLoading(false);
+    }
+  }, [productId]);
 
+  // Listen auth & fetch owned products
   useEffect(() => {
-    const auth = getAuth();
-    const db = getFirestore();
-
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setUser(user);
-      if (!user) {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setUser(currentUser);
+      if (!currentUser) {
         setOwnedProductIds([]);
         setAuthLoading(false);
         return;
@@ -57,13 +78,13 @@ export default function ProductPage() {
 
       try {
         const purchasesRef = collection(db, "purchases");
-        const q = query(purchasesRef, where("userId", "==", user.uid));
+        const q = query(purchasesRef, where("userId", "==", currentUser.uid));
         const snapshot = await getDocs(q);
 
         const ownedIds: string[] = [];
         snapshot.forEach((doc) => {
           const data = doc.data();
-          if (data.id) ownedIds.push(data.id);
+          if (data.productId) ownedIds.push(data.productId);
         });
 
         setOwnedProductIds(ownedIds);
@@ -79,19 +100,6 @@ export default function ProductPage() {
 
   const isOwned = ownedProductIds.includes(productId);
 
-  const [selectedImage, setSelectedImage] = useState(product?.image || "");
-  const [quantity, setQuantity] = useState(1);
-  const maxQuantity = product?.price && product.price > 0 ? 2 : 10;
-
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 1500);
-    const fallbackTimer = setTimeout(() => setLoading(false), 3000);
-    return () => {
-      clearTimeout(timer);
-      clearTimeout(fallbackTimer);
-    };
-  }, []);
-
   const decrement = useCallback(() => {
     setQuantity((q) => Math.max(1, q - 1));
   }, []);
@@ -106,7 +114,43 @@ export default function ProductPage() {
     });
   }, [maxQuantity]);
 
-  if (!product) return null;
+  const handleAddToCart = useCallback(() => {
+    if (isOwned) {
+      alert("You already own this product.");
+      return;
+    }
+    alert(`${quantity} x ${product?.name} added to cart!`);
+    // TODO: Implement cart update logic here
+  }, [isOwned, quantity, product?.name]);
+
+  const handleAddToLibrary = useCallback(() => {
+    if (isOwned) {
+      alert("You already own this product.");
+      return;
+    }
+    // Save product ID to localStorage for the thankyou page
+    localStorage.setItem("purchasedProductId", productId);
+    alert(`Added ${product?.name} to your library!`);
+    router.push("/product/thankyou");
+  }, [isOwned, productId, product?.name, router]);
+
+  const handleLogout = useCallback(async () => {
+    await signOut(auth);
+    router.push("/login");
+  }, [router]);
+
+  // Replace CircularProgress loading with your LoadingScreen component
+  if (loading || authLoading) {
+    return <LoadingScreen message="Loading product details..." />;
+  }
+
+  if (!product) {
+    return (
+      <div className="min-h-screen text-white flex justify-center items-center">
+        Product not found.
+      </div>
+    );
+  }
 
   const displayPrice = isOwned
     ? "Owned"
@@ -114,43 +158,9 @@ export default function ProductPage() {
     ? `$${product.price.toFixed(2)}`
     : "Free";
 
-  const handleAddToCart = useCallback(() => {
-    if (isOwned) {
-      alert("You already own this product.");
-      return;
-    }
-    alert(`${quantity} x ${product.name} added to cart!`);
-    // TODO: Replace with actual cart update logic (e.g., context)
-    setCartItemsCount((count) => count + quantity);
-  }, [isOwned, quantity, product.name]);
-
-  const handleAddToLibrary = useCallback(() => {
-    if (isOwned) {
-      alert("You already own this product.");
-      return;
-    }
-    localStorage.setItem("purchasedProductId", product.id);
-    router.push("/product/thankyou");
-  }, [isOwned, product.id, router]);
-
-  const handleLogout = useCallback(async () => {
-    const auth = getAuth();
-    await signOut(auth);
-    router.push("/login");
-  }, [router]);
-
-  if (loading || authLoading) {
-    return (
-      <div className="flex flex-col justify-center items-center min-h-screen space-y-4 text-white">
-        <CircularProgress color="primary" />
-        <span className="text-lg font-medium">Loading product details...</span>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen text-white flex flex-col">
-      <NavBar user={user} onLogout={handleLogout}/>
+      <NavBar user={user} onLogout={handleLogout} />
 
       <main className="flex-grow max-w-7xl mx-auto px-6 py-12 grid grid-cols-1 md:grid-cols-2 gap-12">
         {/* Product image */}

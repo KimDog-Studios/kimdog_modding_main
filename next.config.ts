@@ -5,7 +5,8 @@ const nextConfig: NextConfig = {
     domains: [
       "upload.wikimedia.org",
       "raw.githubusercontent.com",
-      "lh3.googleusercontent.com",  // Add this line
+      "lh3.googleusercontent.com",
+      "firebasestorage.googleapis.com",  // Added this line
     ],
   },
 };

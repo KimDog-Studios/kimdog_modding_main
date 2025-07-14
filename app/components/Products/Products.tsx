@@ -1,13 +1,32 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import products from "../../config/ProductsConfig";
+import { motion } from "framer-motion";
 
-import { getFirestore, collection, query, where, getDocs } from "firebase/firestore";
+import {
+  getFirestore,
+  collection,
+  onSnapshot,
+  query,
+  where,
+  getDocs,
+} from "firebase/firestore";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
+
+interface Product {
+  id: string;
+  author: string;
+  description: string;
+  downloadUrl: string;
+  game: string;
+  image: string;
+  name: string;
+  price: number;
+}
 
 function Products() {
   const router = useRouter();
+  const [products, setProducts] = useState<Product[]>([]);
   const [ownedProductIds, setOwnedProductIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -16,7 +35,8 @@ function Products() {
     const auth = getAuth();
     const db = getFirestore();
 
-    const unsubscribe = onAuthStateChanged(auth, async (user: User | null) => {
+    // Listen for auth changes
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user: User | null) => {
       if (!user) {
         setOwnedProductIds([]);
         setLoading(false);
@@ -31,7 +51,6 @@ function Products() {
         const ownedIds: string[] = [];
         snapshot.forEach((doc) => {
           const data = doc.data();
-          // The product's id is stored in field 'id' in each purchase doc
           if (data.id) {
             ownedIds.push(data.id);
           }
@@ -45,6 +64,41 @@ function Products() {
         setLoading(false);
       }
     });
+
+    return () => unsubscribeAuth();
+  }, []);
+
+  // Load products from Firestore in real-time
+  useEffect(() => {
+    const db = getFirestore();
+    const productsRef = collection(db, "products");
+
+    // Listen real-time on products collection (modId documents)
+    const unsubscribe = onSnapshot(
+      productsRef,
+      (snapshot) => {
+        const productsData: Product[] = [];
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          productsData.push({
+            id: data.id || doc.id,
+            author: data.author || "",
+            description: data.description || "",
+            downloadUrl: data.downloadUrl || "",
+            game: data.game || "",
+            image: data.image || "",
+            name: data.name || "",
+            price: data.price ?? 0,
+          });
+        });
+
+        setProducts(productsData);
+      },
+      (error) => {
+        console.error("Error loading products:", error);
+        setError("Failed to load products.");
+      }
+    );
 
     return () => unsubscribe();
   }, []);
@@ -73,16 +127,22 @@ function Products() {
                 className="w-full h-48 object-cover rounded-xl z-10 relative"
               />
 
-              {/* Owned badge */}
+              {/* Owned badge with pulsing animation */}
               {isOwned && (
-                <div className="absolute top-4 right-4 bg-green-600 text-white text-xs font-bold px-3 py-1 rounded-full z-20 select-none">
+                <motion.div
+                  animate={{ scale: [1, 1.1, 1] }}
+                  transition={{ repeat: Infinity, duration: 2 }}
+                  className="absolute top-4 right-4 bg-green-600 text-white text-xs font-bold px-3 py-1 rounded-full z-20 select-none"
+                >
                   Owned
-                </div>
+                </motion.div>
               )}
 
               <div className="z-10 relative mt-4">
                 <h2 className="text-xl font-semibold text-white">{product.name}</h2>
                 <p className="text-gray-300 text-sm mt-1">{product.description}</p>
+
+                {/* Price or owned text without animation */}
                 <div
                   className={`font-bold text-xl mt-4 ${
                     isOwned ? "text-green-500" : "text-sky-400"
@@ -95,11 +155,11 @@ function Products() {
                     : `$${product.price.toFixed(2)}`}
                 </div>
 
-                {/* Author with blue checkmark */}
+                {/* Author with animated blue checkmark */}
                 <div className="mt-2 flex items-center space-x-2 text-sm text-gray-300">
                   <span>{product.author}</span>
                   {product.author === "KimDog Studios" && (
-                    <svg
+                    <motion.svg
                       xmlns="http://www.w3.org/2000/svg"
                       className="h-5 w-5 text-sky-500"
                       fill="none"
@@ -107,9 +167,12 @@ function Products() {
                       stroke="currentColor"
                       strokeWidth={3}
                       aria-label="Verified author"
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.6, ease: "easeOut" }}
                     >
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
+                    </motion.svg>
                   )}
                 </div>
               </div>
