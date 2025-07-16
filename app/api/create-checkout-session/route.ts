@@ -4,7 +4,7 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "22025-06-30.basil",
+  apiVersion: "2025-06-30.basil",
 });
 
 export async function POST(request: NextRequest) {
