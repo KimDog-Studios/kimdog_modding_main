@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useCart } from "../components/CartContext"; // adjust path
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../lib/firebase"; // adjust path
 import { motion, AnimatePresence } from "framer-motion";
 import { loadStripe } from "@stripe/stripe-js";
@@ -22,22 +22,116 @@ interface CartItemType {
   quantity: number;
 }
 
-const containerVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { staggerChildren: 0.12 } },
-};
+interface DiscountCodeProps {
+  onApply: (discountPercent: number) => void;
+  disabled?: boolean;
+}
 
-const itemVariants = {
-  hidden: { opacity: 0, y: 15 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.4 } },
-  hover: { scale: 1.03, boxShadow: `0 10px 20px ${PURPLE}55` },
-};
+function DiscountCode({ onApply, disabled = false }: DiscountCodeProps) {
+  const [code, setCode] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const applyCode = async () => {
+    setLoading(true);
+    setMessage(null);
+
+    try {
+      const codesRef = collection(db, "discount_codes");
+      const q = query(codesRef, where("code", "==", code.trim()));
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        setMessage("Invalid discount code.");
+        onApply(0);
+      } else {
+        const doc = querySnapshot.docs[0];
+        const data = doc.data();
+
+        if (typeof data.Percentage === "number" && data.Percentage > 0) {
+          setMessage(`Discount code applied: ${data.Percentage}% off!`);
+          onApply(data.Percentage);
+        } else {
+          setMessage("Invalid discount code data.");
+          onApply(0);
+        }
+      }
+    } catch (error) {
+      console.error("Error validating discount code:", error);
+      setMessage("Failed to validate discount code.");
+      onApply(0);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ marginBottom: 24, userSelect: "none" }}>
+      <label
+        htmlFor="discountCode"
+        style={{ fontWeight: "700", fontSize: 16, marginRight: 12 }}
+      >
+        Discount Code:
+      </label>
+      <input
+        id="discountCode"
+        type="text"
+        value={code}
+        onChange={(e) => setCode(e.target.value)}
+        disabled={disabled || loading}
+        placeholder="Enter code"
+        style={{
+          padding: "8px 12px",
+          fontSize: 16,
+          borderRadius: 8,
+          border: "1.5px solid #ccc",
+          marginRight: 8,
+          width: 160,
+        }}
+      />
+      <button
+        onClick={applyCode}
+        disabled={disabled || loading || code.trim() === ""}
+        style={{
+          backgroundColor: PURPLE,
+          color: "#fff",
+          fontWeight: "700",
+          padding: "8px 16px",
+          borderRadius: 8,
+          border: "none",
+          cursor: disabled || loading || code.trim() === "" ? "not-allowed" : "pointer",
+        }}
+      >
+        {loading ? "Applying..." : "Apply"}
+      </button>
+
+      {message && (
+        <p
+          style={{
+            marginTop: 8,
+            fontWeight: "600",
+            color:
+              message.includes("Invalid") || message.includes("Failed")
+                ? "red"
+                : "green",
+          }}
+          role="alert"
+        >
+          {message}
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function CartPage() {
   const { items, setItemQuantity, removeItem, clearCart } = useCart();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+
+  // Discount state
+  const [discountPercent, setDiscountPercent] = useState(0);
 
   const fetchProducts = useCallback(async () => {
     if (items.length === 0) {
@@ -77,6 +171,7 @@ export default function CartPage() {
     }
     setCheckoutLoading(true);
     try {
+      // Pass discount percent to backend if needed
       const res = await fetch("/api/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -85,6 +180,7 @@ export default function CartPage() {
             id: productId,
             quantity,
           })),
+          discountPercent, // send discount to backend
           success_url: `${window.location.origin}/success`,
           cancel_url: `${window.location.origin}/cart`,
         }),
@@ -120,6 +216,15 @@ export default function CartPage() {
     }
   }
 
+  // Calculate total with discount
+  const subtotal = products.reduce((acc, product) => {
+    const quantity = items.find((i) => i.productId === product.id)?.quantity || 0;
+    return acc + product.price * quantity;
+  }, 0);
+
+  const discountAmount = (subtotal * discountPercent) / 100;
+  const totalAfterDiscount = subtotal - discountAmount;
+
   return (
     <main
       style={{
@@ -141,6 +246,9 @@ export default function CartPage() {
       >
         Your Cart
       </h1>
+
+      {/* Discount code input */}
+      <DiscountCode onApply={setDiscountPercent} disabled={checkoutLoading} />
 
       {/* Sticky buttons bar always visible */}
       <div
@@ -175,7 +283,8 @@ export default function CartPage() {
             transition: "background-color 0.3s ease",
           }}
           onMouseEnter={(e) => {
-            if (!(items.length === 0 || checkoutLoading)) e.currentTarget.style.background = "#580a9d";
+            if (!(items.length === 0 || checkoutLoading))
+              e.currentTarget.style.background = "#580a9d";
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.background = PURPLE;
@@ -223,12 +332,16 @@ export default function CartPage() {
             padding: "12px 24px",
             fontWeight: "900",
             fontSize: 18,
-            cursor: checkoutLoading || loading || items.length === 0 ? "not-allowed" : "pointer",
+            cursor:
+              checkoutLoading || loading || items.length === 0
+                ? "not-allowed"
+                : "pointer",
             boxShadow: `6px 6px 8px ${PURPLE}cc, -6px -6px 8px #ffffff55`,
             transition: "background-color 0.3s ease",
           }}
           onMouseEnter={(e) => {
-            if (!(checkoutLoading || loading || items.length === 0)) e.currentTarget.style.background = "#580a9d";
+            if (!(checkoutLoading || loading || items.length === 0))
+              e.currentTarget.style.background = "#580a9d";
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.background = PURPLE;
@@ -278,7 +391,8 @@ export default function CartPage() {
           >
             <AnimatePresence>
               {products.map((product) => {
-                const quantity = items.find((i) => i.productId === product.id)?.quantity || 0;
+                const quantity =
+                  items.find((i) => i.productId === product.id)?.quantity || 0;
 
                 return (
                   <motion.li
@@ -310,93 +424,94 @@ export default function CartPage() {
                         boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
                         userSelect: "none",
                       }}
-                      draggable={false}
+                      loading="lazy"
                     />
 
-                    <div style={{ flexGrow: 1 }}>
-                      <h2
+                    <div
+                      style={{
+                        flexGrow: 1,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 8,
+                      }}
+                    >
+                      <h3
                         style={{
-                          fontWeight: "800",
-                          fontSize: 22,
-                          marginBottom: 8,
-                          color: "#2c3e50",
+                          fontWeight: "900",
+                          fontSize: 20,
+                          marginBottom: 4,
+                          userSelect: "none",
+                          color: "#222",
                         }}
                       >
                         {product.name}
-                      </h2>
+                      </h3>
+
                       <p
                         style={{
-                          fontWeight: "600",
-                          color: "#34495e",
-                          marginBottom: 10,
-                          fontSize: 16,
+                          fontWeight: "700",
+                          fontSize: 18,
+                          color: "#444",
+                          marginBottom: 12,
+                          userSelect: "none",
                         }}
                       >
-                        Price:{" "}
-                        <span style={{ color: PURPLE, fontWeight: "900" }}>
-                          ${product.price.toFixed(2)}
-                        </span>
+                        Price: ${product.price.toFixed(2)}
                       </p>
 
+                      {/* Quantity input */}
                       <label
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          fontWeight: "700",
-                          fontSize: 15,
-                          color: "#34495e",
-                        }}
+                        htmlFor={`quantity-${product.id}`}
+                        style={{ fontWeight: "700", fontSize: 16, marginBottom: 6 }}
                       >
                         Quantity:
-                        <motion.input
-                          type="number"
-                          value={quantity}
-                          min={1}
-                          onChange={(e) => {
-                            const val = Number(e.target.value);
-                            if (val >= 1) setItemQuantity(product.id, val);
-                          }}
-                          style={{
-                            width: 72,
-                            marginLeft: 14,
-                            padding: "8px 14px",
-                            borderRadius: 12,
-                            border: "none",
-                            fontWeight: "700",
-                            fontSize: 16,
-                            fontFamily:
-                              "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-                            background: "linear-gradient(145deg, #dbe2f1, #f7fbff)",
-                            boxShadow:
-                              "inset 6px 6px 8px #bec9e0, inset -6px -6px 8px #ffffff",
-                            outline: "none",
-                            userSelect: "none",
-                          }}
-                          disabled={checkoutLoading}
-                          aria-label={`Change quantity of ${product.name}`}
-                        />
                       </label>
+                      <input
+                        id={`quantity-${product.id}`}
+                        type="number"
+                        min={1}
+                        max={100}
+                        step={1}
+                        value={quantity}
+                        onChange={(e) => {
+                          const val = Math.min(
+                            100,
+                            Math.max(1, Number(e.target.value))
+                          );
+                          setItemQuantity(product.id, val);
+                        }}
+                        style={{
+                          width: 70,
+                          borderRadius: 10,
+                          padding: "8px 12px",
+                          fontSize: 18,
+                          fontWeight: "900",
+                          border: "2px solid #6a0dad",
+                          backgroundColor: "#f9f6ff",
+                          color: "#3a0ca3",
+                          userSelect: "none",
+                          boxShadow: "0 0 8px rgba(106, 13, 173, 0.3)",
+                          transition: "border-color 0.3s ease, box-shadow 0.3s ease",
+                        }}
+                        aria-label={`Set quantity for ${product.name}`}
+                      />
                     </div>
 
                     <button
-                      aria-label={`Remove ${product.name} from cart`}
                       onClick={() => removeItem(product.id)}
-                      disabled={checkoutLoading}
                       style={{
-                        background: "#ff4d6d",
-                        color: "#fff",
-                        fontWeight: "900",
-                        fontSize: 18,
-                        borderRadius: 12,
+                        backgroundColor: "transparent",
                         border: "none",
-                        padding: "10px 18px",
                         cursor: "pointer",
-                        boxShadow: "4px 4px 8px #d83858, -4px -4px 8px #ff7191",
+                        padding: 12,
+                        alignSelf: "flex-start",
+                        color: PURPLE,
+                        fontWeight: "900",
+                        fontSize: 20,
                         userSelect: "none",
-                        alignSelf: "start",
                       }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = "#cc3b5e")}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = "#ff4d6d")}
+                      aria-label={`Remove ${product.name} from cart`}
+                      title={`Remove ${product.name}`}
                     >
                       &times;
                     </button>
@@ -406,30 +521,66 @@ export default function CartPage() {
             </AnimatePresence>
           </motion.ul>
 
-          {/* Total price */}
-          <p
+          <div
             style={{
-              fontWeight: "800",
-              fontSize: 28,
-              textAlign: "right",
-              marginTop: 32,
+              fontWeight: "700",
+              fontSize: 24,
+              color: "#222",
+              marginTop: 24,
               userSelect: "none",
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+              textAlign: "right",
             }}
           >
-            Total:{" "}
-            <span style={{ color: PURPLE }}>
-              $
-              {products
-                .reduce((acc, product) => {
-                  const quantity = items.find((i) => i.productId === product.id)?.quantity || 0;
-                  return acc + product.price * quantity;
-                }, 0)
-                .toFixed(2)}
-            </span>
-          </p>
+            <p>Subtotal: ${subtotal.toFixed(2)}</p>
+            {discountPercent > 0 && (
+              <>
+                <p style={{ color: "green" }}>
+                  Discount ({discountPercent}%): -${discountAmount.toFixed(2)}
+                </p>
+                <p
+                  style={{
+                    fontWeight: "900",
+                    fontSize: 28,
+                    color: PURPLE,
+                  }}
+                >
+                  Total: ${totalAfterDiscount.toFixed(2)}
+                </p>
+              </>
+            )}
+            {discountPercent === 0 && (
+              <p
+                style={{
+                  fontWeight: "900",
+                  fontSize: 28,
+                  color: PURPLE,
+                }}
+              >
+                Total: ${subtotal.toFixed(2)}
+              </p>
+            )}
+          </div>
         </>
-        
       )}
     </main>
   );
 }
+
+// Animation variants for framer-motion
+const containerVariants = {
+  hidden: { opacity: 0, scale: 0.95 },
+  visible: {
+    opacity: 1,
+    scale: 1,
+    transition: { staggerChildren: 0.1 },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 15 },
+  visible: { opacity: 1, y: 0 },
+  hover: { scale: 1.02 },
+};

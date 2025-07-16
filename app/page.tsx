@@ -1,14 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-// import NavigationBar from "./components/NavBar/NavBar";  // Removed import
 import Products from "./components/Products/Products";
 import LoadingScreen from "./components/LoadingScreen";
 import { auth } from "./lib/firebase";
 import { onAuthStateChanged, User, signOut } from "firebase/auth";
 import HomePageSponsors from "./components/Sponsors/HomePage";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useScroll, useTransform } from "framer-motion";
 
 const modalBackdropVariant = {
   hidden: { opacity: 0 },
@@ -28,6 +27,14 @@ export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
+
+  const productsRef = useRef<HTMLDivElement>(null);
+  const sponsorsRef = useRef<HTMLDivElement>(null);
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -51,6 +58,47 @@ export default function Home() {
     }
   };
 
+  // Scroll animations for Products section
+  const productsScrollProgress =
+    isClient && productsRef.current
+      ? useScroll({
+          target: productsRef,
+          offset: ["start end", "end start"],
+        }).scrollYProgress
+      : null;
+
+  const productsOpacity = productsScrollProgress
+    ? useTransform(productsScrollProgress, [0, 0.5, 1], [0, 1, 0])
+    : 1;
+  const productsScale = productsScrollProgress
+    ? useTransform(productsScrollProgress, [0, 0.5, 1], [0.8, 1, 0.8])
+    : 1;
+  const productsRotateX = productsScrollProgress
+    ? useTransform(productsScrollProgress, [0, 0.5, 1], [30, 0, -30])
+    : 0;
+  const productsY = productsScrollProgress
+    ? useTransform(productsScrollProgress, [0, 1], [100, -100])
+    : 0;
+
+  // Scroll animations for Sponsors section
+  const sponsorsScrollProgress =
+    isClient && sponsorsRef.current
+      ? useScroll({
+          target: sponsorsRef,
+          offset: ["start end", "end start"],
+        }).scrollYProgress
+      : null;
+
+  const sponsorsOpacity = sponsorsScrollProgress
+    ? useTransform(sponsorsScrollProgress, [0, 0.5, 1], [0, 1, 0])
+    : 1;
+  const sponsorsX = sponsorsScrollProgress
+    ? useTransform(sponsorsScrollProgress, [0, 0.5, 1], [100, 0, -100])
+    : 0;
+  const sponsorsSkew = sponsorsScrollProgress
+    ? useTransform(sponsorsScrollProgress, [0, 0.5, 1], [15, 0, -15])
+    : 0;
+
   if (loading) {
     return <LoadingScreen message="Checking authentication..." />;
   }
@@ -60,25 +108,34 @@ export default function Home() {
   }
 
   return (
-    <div>
-      {/* NavBar removed */}
-
-      {/* Products scroll-in animation */}
+    <div style={{ overflowX: "hidden" }}>
+      {/* Products scroll animations */}
       <motion.div
-        initial={{ opacity: 0, y: 50 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, amount: 0.2 }}
-        transition={{ duration: 0.7, ease: "easeOut" }}
+        ref={productsRef}
+        style={{
+          opacity: productsOpacity,
+          scale: productsScale,
+          rotateX: productsRotateX,
+          y: productsY,
+          transformStyle: "preserve-3d",
+          perspective: 800,
+          marginBottom: 100,
+        }}
+        transition={{ duration: 0.8, ease: "easeOut" }}
       >
         <Products />
       </motion.div>
 
-      {/* Sponsors scroll-in animation */}
+      {/* Sponsors scroll animations */}
       <motion.div
-        initial={{ opacity: 0, y: 50 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, amount: 0.2 }}
-        transition={{ duration: 0.7, ease: "easeOut", delay: 0.1 }}
+        ref={sponsorsRef}
+        style={{
+          opacity: sponsorsOpacity,
+          x: sponsorsX,
+          skewX: sponsorsSkew,
+          marginBottom: 100,
+        }}
+        transition={{ duration: 1, ease: "easeOut" }}
       >
         <HomePageSponsors />
       </motion.div>
