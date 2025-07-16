@@ -4,6 +4,7 @@ import { useState } from "react";
 import LoginForm from "../../components/Admin/LoginForm";
 import SponsorsManager from "../../components/Admin/SponsorsManager";
 import ProductsManager from "../../components/Admin/ProductsManager";
+import UserManager from "../../components/Admin/UserManager";
 
 export default function AdminPage() {
   const [loggedIn, setLoggedIn] = useState(false);
@@ -29,6 +30,8 @@ export default function AdminPage() {
       <div className="my-10 border-t" />
 
       <ProductsManager />
+
+      <UserManager />
     </div>
   );
 }
