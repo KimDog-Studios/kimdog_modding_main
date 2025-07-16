@@ -1,12 +1,18 @@
 import React, { useEffect, useState, useRef } from "react";
 import { db } from "../../lib/firebase";
-import { collection, onSnapshot, QuerySnapshot, DocumentData } from "firebase/firestore";
+import {
+  collection,
+  onSnapshot,
+  QuerySnapshot,
+  DocumentData,
+} from "firebase/firestore";
 
 type Sponsor = {
   name: string;
   image: string;
   description: string;
   buttonText: string;
+  link?: string;
 };
 
 export default function SponsorSection() {
@@ -23,9 +29,10 @@ export default function SponsorSection() {
           image: doc.data().image,
           description: doc.data().description,
           buttonText: doc.data().buttonText,
+          link: doc.data().link,
         }));
 
-        const repeatCount = 10; // number of times to repeat the sponsor list for seamless scroll
+        const repeatCount = 10;
         const extendedSponsors = Array(repeatCount).fill(sponsorData).flat();
         setSponsors(extendedSponsors);
         setLoading(false);
@@ -62,27 +69,37 @@ export default function SponsorSection() {
                 willChange: "transform",
               }}
             >
-              {sponsors.map(({ name, image, description, buttonText }, idx) => (
-                <div
-                  key={`${name}-${idx}`}
-                  className="inline-flex flex-col items-center justify-center text-center max-w-xs px-6 py-6 bg-purple-800/40 rounded-xl shadow-md backdrop-blur-sm hover:scale-105 transition-transform duration-300"
-                >
-                  <img
-                    src={image}
-                    alt={name}
-                    className="h-36 w-auto object-contain mb-4 filter brightness-90 hover:brightness-110 transition duration-100"
-                    loading="lazy"
-                  />
-                  <h3 className="text-white text-xl font-semibold mb-1">{name}</h3>
-                  <p className="text-purple-200 text-sm mb-4">{description}</p>
-                  <button
-                    type="button"
-                    className="bg-white text-purple-800 hover:bg-purple-100 font-semibold text-sm py-2 px-6 rounded-full transition duration-200 shadow"
+              {sponsors.map(
+                ({ name, image, description, buttonText, link }, idx) => (
+                  <div
+                    key={`${name}-${idx}`}
+                    className="inline-flex flex-col items-center justify-center text-center max-w-xs px-6 py-6 bg-purple-800/40 rounded-xl shadow-md backdrop-blur-sm hover:scale-105 transition-transform duration-300"
                   >
-                    {buttonText}
-                  </button>
-                </div>
-              ))}
+                    <img
+                      src={image}
+                      alt={name}
+                      className="h-36 w-auto object-contain mb-4 filter brightness-90 hover:brightness-110 transition duration-100"
+                      loading="lazy"
+                    />
+                    <h3 className="text-white text-xl font-semibold mb-1">
+                      {name}
+                    </h3>
+                    <p className="text-purple-200 text-sm mb-4">
+                      {description}
+                    </p>
+                    {link && link.trim() !== "" && (
+                      <a
+                        href={link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-white text-purple-800 hover:bg-purple-100 font-semibold text-sm py-2 px-6 rounded-full transition duration-200 shadow"
+                      >
+                        {buttonText}
+                      </a>
+                    )}
+                  </div>
+                )
+              )}
             </div>
           </div>
         )}

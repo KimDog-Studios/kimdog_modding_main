@@ -37,12 +37,16 @@ const modalVariant = {
 };
 
 export default function AuthForm({ onLoginSuccess }: AuthFormProps) {
-  const [authMode, setAuthMode] = useState<"login" | "signup" | "reset">("login");
+  const [authMode, setAuthMode] = useState<"login" | "signup" | "reset">(
+    "login"
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
   const [cooldown, setCooldown] = useState(false);
-  const [confirmAction, setConfirmAction] = useState<null | "login" | "signup" | "reset">(null);
+  const [confirmAction, setConfirmAction] = useState<
+    null | "login" | "signup" | "reset"
+  >(null);
 
   // State for Google confirmation modal & user info
   const [googleUser, setGoogleUser] = useState<User | null>(null);
@@ -68,7 +72,11 @@ export default function AuthForm({ onLoginSuccess }: AuthFormProps) {
     try {
       let userCredential;
       if (confirmAction === "login") {
-        userCredential = await signInWithEmailAndPassword(auth, safeEmail, safePassword);
+        userCredential = await signInWithEmailAndPassword(
+          auth,
+          safeEmail,
+          safePassword
+        );
         toast.success("Logged in successfully!");
         onLoginSuccess?.(userCredential.user);
       } else if (confirmAction === "signup") {
@@ -77,7 +85,11 @@ export default function AuthForm({ onLoginSuccess }: AuthFormProps) {
           setAuthLoading(false);
           return;
         }
-        userCredential = await createUserWithEmailAndPassword(auth, safeEmail, safePassword);
+        userCredential = await createUserWithEmailAndPassword(
+          auth,
+          safeEmail,
+          safePassword
+        );
         toast.success("Account created and logged in!");
         onLoginSuccess?.(userCredential.user);
       } else if (confirmAction === "reset") {
@@ -198,7 +210,9 @@ export default function AuthForm({ onLoginSuccess }: AuthFormProps) {
             onChange={(e) => setPassword(e.target.value)}
             required
             minLength={6}
-            autoComplete={authMode === "login" ? "current-password" : "new-password"}
+            autoComplete={
+              authMode === "login" ? "current-password" : "new-password"
+            }
             aria-label="Password"
             disabled={authLoading}
           />
@@ -327,7 +341,10 @@ export default function AuthForm({ onLoginSuccess }: AuthFormProps) {
               className="bg-gray-900 p-6 rounded-xl max-w-sm w-full text-white shadow-xl"
               variants={modalVariant}
             >
-              <h3 id="confirm-modal-title" className="text-xl font-semibold mb-4">
+              <h3
+                id="confirm-modal-title"
+                className="text-xl font-semibold mb-4"
+              >
                 {confirmAction === "login" && "Confirm Login"}
                 {confirmAction === "signup" && "Confirm Sign Up"}
                 {confirmAction === "reset" && "Confirm Password Reset"}
@@ -391,7 +408,9 @@ export default function AuthForm({ onLoginSuccess }: AuthFormProps) {
                   />
                 )}
                 <div>
-                  <p className="font-semibold">{googleUser.displayName || "Google User"}</p>
+                  <p className="font-semibold">
+                    {googleUser.displayName || "Google User"}
+                  </p>
                   <p className="text-gray-400 text-sm">{googleUser.email}</p>
                 </div>
               </div>
