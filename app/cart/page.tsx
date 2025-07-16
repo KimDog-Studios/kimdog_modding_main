@@ -428,6 +428,7 @@ export default function CartPage() {
             </span>
           </p>
         </>
+        
       )}
     </main>
   );
