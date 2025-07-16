@@ -1,7 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import NavBar from "@/app/components/NavBar/NavBar";
 import LoadingScreen from "../../components/LoadingScreen"; // Added import
 import confetti from "canvas-confetti";
 import { motion } from "framer-motion";
@@ -125,7 +124,6 @@ export default function ThankYouPage() {
   if (!product) {
     return (
       <div className="min-h-screen flex flex-col bg-gray-900 text-white p-8">
-        <NavBar user={user} onLogout={() => auth.signOut()} />
         <main className="flex-grow flex flex-col justify-center items-center">
           <h1 className="text-3xl font-bold mb-4">No product found</h1>
         </main>
@@ -135,7 +133,6 @@ export default function ThankYouPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-900 text-white">
-      <NavBar user={user} onLogout={() => auth.signOut()} />
       <main className="flex-grow max-w-4xl mx-auto p-8 flex flex-col items-center text-center">
         <motion.h1
           className={`text-5xl font-extrabold mb-6 ${
