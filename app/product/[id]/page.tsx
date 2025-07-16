@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter, notFound } from "next/navigation";
 import Image from "next/image";
-import LoadingScreen from "@/app/components/LoadingScreen"; // <-- import your new loading screen here
+import LoadingScreen from "@/app/components/LoadingScreen";
 import {
   collection,
   query,
@@ -11,8 +11,10 @@ import {
   getDocs,
   doc,
   getDoc,
+  setDoc,
+  updateDoc,
 } from "firebase/firestore";
-import { onAuthStateChanged, signOut, User } from "firebase/auth";
+import { onAuthStateChanged, User } from "firebase/auth";
 import { db, auth } from "../../lib/firebase";
 
 type Product = {
@@ -39,7 +41,6 @@ export default function ProductPage() {
 
   const maxQuantity = product?.price && product.price > 0 ? 2 : 10;
 
-  // Fetch product
   useEffect(() => {
     async function fetchProduct() {
       try {
@@ -65,7 +66,6 @@ export default function ProductPage() {
     }
   }, [productId]);
 
-  // Listen auth & fetch owned products
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
@@ -113,32 +113,67 @@ export default function ProductPage() {
     });
   }, [maxQuantity]);
 
-  const handleAddToCart = useCallback(() => {
+  const handleAddToCart = useCallback(async () => {
     if (isOwned) {
       alert("You already own this product.");
       return;
     }
-    alert(`${quantity} x ${product?.name} added to cart!`);
-    // TODO: Implement cart update logic here
-  }, [isOwned, quantity, product?.name]);
+    if (!product || !user) {
+      alert("Please login to add to cart.");
+      return;
+    }
+
+    const cartDocRef = doc(db, "carts", user.uid);
+
+    try {
+      const cartDoc = await getDoc(cartDocRef);
+
+      let updatedItems: { productId: string; quantity: number }[] = [];
+
+      if (cartDoc.exists()) {
+        const data = cartDoc.data();
+        updatedItems = data.items || [];
+
+        const existingIndex = updatedItems.findIndex(
+          (item) => item.productId === product.id
+        );
+
+        if (existingIndex > -1) {
+          // Update quantity, capped by maxQuantity
+          const existingItem = updatedItems[existingIndex];
+          const newQuantity = Math.min(
+            existingItem.quantity + quantity,
+            maxQuantity
+          );
+          updatedItems[existingIndex] = { productId: product.id, quantity: newQuantity };
+        } else {
+          updatedItems.push({ productId: product.id, quantity });
+        }
+
+        await updateDoc(cartDocRef, { items: updatedItems });
+      } else {
+        // New cart doc
+        updatedItems = [{ productId: product.id, quantity }];
+        await setDoc(cartDocRef, { items: updatedItems });
+      }
+
+      router.push("/product/cart");
+    } catch (error) {
+      console.error("Failed to add to cart or navigate:", error);
+      alert("Failed to add to cart. Please try again.");
+    }
+  }, [isOwned, product, quantity, maxQuantity, router, user]);
 
   const handleAddToLibrary = useCallback(() => {
     if (isOwned) {
       alert("You already own this product.");
       return;
     }
-    // Save product ID to localStorage for the thankyou page
     localStorage.setItem("purchasedProductId", productId);
     alert(`Added ${product?.name} to your library!`);
     router.push("/product/thankyou");
   }, [isOwned, productId, product?.name, router]);
 
-  const handleLogout = useCallback(async () => {
-    await signOut(auth);
-    router.push("/login");
-  }, [router]);
-
-  // Replace CircularProgress loading with your LoadingScreen component
   if (loading || authLoading) {
     return <LoadingScreen message="Loading product details..." />;
   }
@@ -159,9 +194,7 @@ export default function ProductPage() {
 
   return (
     <div className="min-h-screen text-white flex flex-col">
-
       <main className="flex-grow max-w-7xl mx-auto px-6 py-12 grid grid-cols-1 md:grid-cols-2 gap-12">
-        {/* Product image */}
         <div>
           <div className="border rounded-lg overflow-hidden shadow-lg">
             <Image
@@ -196,7 +229,6 @@ export default function ProductPage() {
           </div>
         </div>
 
-        {/* Product info */}
         <section className="flex flex-col gap-8">
           <div>
             <h1 className="text-5xl font-extrabold mb-4">{product.name}</h1>

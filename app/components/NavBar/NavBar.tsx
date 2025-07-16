@@ -5,16 +5,16 @@ import Logo from "./Logo";
 import NavLinks from "./NavLinks";
 import SignInLink from "./SignInLink";
 import UserMenu from "./UserMenu";
-import Cart from "./CartButton";
+import CartButton from "./CartButton";
 import { User } from "firebase/auth";
 import { usePathname } from "next/navigation";
 
 interface NavBarProps {
-  user?: User | null;         // made optional
-  onLogout?: () => void;      // made optional
+  user: User | null;
+  onLogout: () => void;
 }
 
-const NavBar: React.FC<NavBarProps> = ({ user = null, onLogout }) => {
+const NavBar: React.FC<NavBarProps> = ({ user, onLogout }) => {
   const pathname = usePathname();
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
@@ -22,7 +22,7 @@ const NavBar: React.FC<NavBarProps> = ({ user = null, onLogout }) => {
     if (pathname === "/") return "Home";
     if (pathname.startsWith("/product/catalog")) return "Catalog";
     if (pathname.startsWith("/contact")) return "Contact";
-    return ""; // No active link for others
+    return ""; // Nothing will be marked active for unmatched paths (e.g., external links)
   };
 
   const activeLink = getActiveLinkName();
@@ -40,11 +40,11 @@ const NavBar: React.FC<NavBarProps> = ({ user = null, onLogout }) => {
             <Logo onClick={handleLinkClick} />
           </div>
           <div className="ml-auto flex items-center space-x-5 text-white">
-            <Cart />
+            <CartButton />
             {user ? (
               <UserMenu
                 user={user}
-                onLogout={onLogout ?? (() => {})} // safe fallback no-op
+                onLogout={onLogout}
                 dropdownOpen={dropdownOpen}
                 setDropdownOpen={setDropdownOpen}
               />

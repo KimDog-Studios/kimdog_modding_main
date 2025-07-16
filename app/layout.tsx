@@ -1,48 +1,27 @@
-import './globals.css'
-import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
-import { CartProvider } from './components/CartContext' // adjust path if needed
-import NavBar from './components/NavBar/NavBar' // adjust path if needed
+import "./globals.css";
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import { CartProvider } from "./components/CartContext";
+import AppClientWrapper from "./AppClientWrapper"; // your client-side auth wrapper
 
 const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-inter',
-  display: 'swap',
-})
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
-  title: 'KimDog Modding',
+  title: "KimDog Modding",
   description: "KimDog's modding website",
-  viewport: 'width=device-width, initial-scale=1',
-  keywords: 'modding, downloads, KimDog, games, mods',
-  openGraph: {
-    title: 'KimDog Modding',
-    description: "KimDog's modding website.",
-    url: 'https://yourwebsite.com/downloads',
-    siteName: 'KimDog Modding',
-    images: [
-      {
-        url: 'https://yourwebsite.com/og-image.png',
-        width: 800,
-        height: 600,
-        alt: 'KimDog Modding Downloads',
-      },
-    ],
-    locale: 'en_US',
-    type: 'website',
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'Downloads - KimDog Modding',
-    description: "Download mods and tools from KimDog's modding website.",
-    images: ['https://yourwebsite.com/twitter-image.png'],
-  },
-}
+  viewport: "width=device-width, initial-scale=1",
+  keywords: "modding, downloads, KimDog, games, mods",
+  // ... other metadata fields here
+};
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
   return (
     <html lang="en" className={inter.variable}>
@@ -52,7 +31,6 @@ export default function RootLayout({
       </head>
       <body className="flex min-h-screen flex-col bg-black text-white antialiased font-sans">
         <CartProvider>
-          {/* Skip to content link */}
           <a
             href="#main-content"
             className="sr-only focus:not-sr-only p-2 bg-blue-600 text-white fixed top-2 left-2 z-50 rounded"
@@ -60,12 +38,8 @@ export default function RootLayout({
             Skip to main content
           </a>
 
-          {/* ✅ Navigation Bar */}
-          <NavBar/>
-
-          <main id="main-content" className="flex-grow" aria-label="Main content area">
-            {children}
-          </main>
+          {/* Wrap content with client-side wrapper for auth and NavBar */}
+          <AppClientWrapper>{children}</AppClientWrapper>
 
           <hr className="border-t border-gray-800 w-full" />
 
@@ -76,16 +50,31 @@ export default function RootLayout({
               role="contentinfo"
               aria-label="Accepted payment methods"
             >
-              <img src="https://img.icons8.com/color/48/visa.png" alt="Visa" className="h-6" />
-              <img src="https://img.icons8.com/color/48/mastercard-logo.png" alt="Mastercard" className="h-6" />
-              <img src="https://img.icons8.com/color/48/paypal.png" alt="PayPal" className="h-6" />
+              <img
+                src="https://img.icons8.com/color/48/visa.png"
+                alt="Visa"
+                className="h-6"
+              />
+              <img
+                src="https://img.icons8.com/color/48/mastercard-logo.png"
+                alt="Mastercard"
+                className="h-6"
+              />
+              <img
+                src="https://img.icons8.com/color/48/paypal.png"
+                alt="PayPal"
+                className="h-6"
+              />
             </div>
           </div>
 
           {/* Footer */}
           <footer className="w-full border-t border-gray-800 bg-black text-sm text-gray-400">
             <div className="mx-auto flex max-w-screen-xl flex-col sm:flex-row justify-between items-center px-4 py-6 sm:px-6 lg:px-8 gap-4">
-              <span>© {new Date().getFullYear()} KimDog Studios. All rights reserved. Powered by KimDog.</span>
+              <span>
+                © {new Date().getFullYear()} KimDog Studios. All rights reserved.
+                Powered by KimDog.
+              </span>
               <nav aria-label="Footer navigation">
                 <div className="flex space-x-4">
                   <a href="/terms" className="hover:underline" aria-current={false}>
@@ -104,5 +93,5 @@ export default function RootLayout({
         </CartProvider>
       </body>
     </html>
-  )
+  );
 }

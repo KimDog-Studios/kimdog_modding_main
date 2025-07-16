@@ -9,7 +9,7 @@ export function CartButton() {
 
   return (
     <Link
-      href="/product/cart"
+      href="/cart"
       className="relative hover:text-purple-300 transition-transform transform hover:scale-110 cursor-pointer"
       aria-label="Shopping Cart"
     >
