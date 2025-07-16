@@ -157,7 +157,7 @@ export default function ProductPage() {
         await setDoc(cartDocRef, { items: updatedItems });
       }
 
-      router.push("/product/cart");
+      router.push("/cart");
     } catch (error) {
       console.error("Failed to add to cart or navigate:", error);
       alert("Failed to add to cart. Please try again.");
