@@ -157,22 +157,17 @@ export default function ProductPage() {
         await setDoc(cartDocRef, { items: updatedItems });
       }
 
+      // If product is free, store it for checkout special handling
+      if (product.price === 0) {
+        localStorage.setItem("purchasedProductId", product.id);
+      }
+
       router.push("/cart");
     } catch (error) {
       console.error("Failed to add to cart or navigate:", error);
       alert("Failed to add to cart. Please try again.");
     }
   }, [isOwned, product, quantity, maxQuantity, router, user]);
-
-  const handleAddToLibrary = useCallback(() => {
-    if (isOwned) {
-      alert("You already own this product.");
-      return;
-    }
-    localStorage.setItem("purchasedProductId", productId);
-    alert(`Added ${product?.name} to your library!`);
-    router.push("/success");
-  }, [isOwned, productId, product?.name, router]);
 
   if (loading || authLoading) {
     return <LoadingScreen message="Loading product details..." />;
@@ -306,21 +301,15 @@ export default function ProductPage() {
             >
               You Own This Product
             </button>
-          ) : product.price && product.price > 0 ? (
-            <button
-              type="button"
-              onClick={handleAddToCart}
-              className="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-5 rounded-md shadow-lg transition text-lg"
-            >
-              Add to cart
-            </button>
           ) : (
             <button
               type="button"
-              onClick={handleAddToLibrary}
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-5 rounded-md shadow-lg transition text-lg"
+              onClick={handleAddToCart}
+              className={`w-full ${
+                product.price && product.price > 0 ? "bg-sky-600 hover:bg-sky-700" : "bg-green-600 hover:bg-green-700"
+              } text-white font-bold py-5 rounded-md shadow-lg transition text-lg`}
             >
-              Add to library
+              Add to cart
             </button>
           )}
         </section>

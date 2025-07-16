@@ -1,208 +1,236 @@
 "use client";
-import React, { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import LoadingScreen from "../components/LoadingScreen";
-import confetti from "canvas-confetti";
-import { motion } from "framer-motion";
-import { auth, db } from "../lib/firebase";
+
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { collection, query, where, getDocs, addDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  where,
+  addDoc,
+  updateDoc,
+} from "firebase/firestore";
+import { auth, db } from "../lib/firebase";
+import confetti from "canvas-confetti";
+import { CheckCircle, XCircle } from "lucide-react";
 
 type Product = {
   id: string;
   name: string;
-  description?: string;
-  price?: number;
-  author?: string;
-  image?: string;
+  description: string;
+  image: string;
+  price: number;
+  author: string;
+  downloadUrl?: string;
+  game?: string;
 };
 
 export default function SuccessPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
+  const sessionId = searchParams.get("session_id");
 
   const [user, setUser] = useState<User | null>(null);
+  const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [products, setProducts] = useState<Product[]>([]);
-  const [status, setStatus] = useState<"success" | "error" | "exists" | null>(
-    null
-  );
-  const [loaded, setLoaded] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string>("");
 
-  // Redirect if no user logged in
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      if (!currentUser) {
-        router.push("/login");
-      } else {
-        setUser(currentUser);
-      }
+    const unsubscribe = onAuthStateChanged(auth, (authUser) => {
+      setUser(authUser);
     });
     return () => unsubscribe();
-  }, [router]);
+  }, []);
 
   useEffect(() => {
-    if (!user) return;
+    const handlePurchase = async () => {
+      if (!user) return;
 
-    const sessionId = searchParams.get("session_id");
-    if (!sessionId) {
-      setStatus("error");
-      setLoaded(true);
-      return;
-    }
-
-    const fetchSessionAndProducts = async () => {
       try {
-        // Fetch session from your backend API (server-side secret key used here)
-        const res = await fetch(`/api/stripe-session?sessionId=${sessionId}`);
-        if (!res.ok) throw new Error("Failed to fetch session");
-
-        const sessionData = await res.json();
-
-        // Stripe expands line_items with data in `line_items.data`
-        const lineItems = sessionData.line_items?.data || [];
-
-        // Map purchased products from Stripe line items
-        const purchasedProducts: Product[] = lineItems.map((item: any) => ({
-          id: item.price.product.id,
-          name: item.description || item.price.product.name,
-          price: item.amount_total
-            ? item.amount_total / 100
-            : item.price.unit_amount
-            ? item.price.unit_amount / 100
-            : undefined,
-          // You can add image, author, description if you store them in Stripe metadata or your DB
-          image: item.price.product.images?.[0] || undefined,
-          description: item.price.product.description || undefined,
-        }));
-
-        setProducts(purchasedProducts);
-
-        // Check if purchase already recorded in Firestore
         const purchasesRef = collection(db, "purchases");
-        const purchaseQuery = query(
-          purchasesRef,
-          where("userId", "==", user.uid),
-          where("sessionId", "==", sessionId)
-        );
-        const purchaseSnapshot = await getDocs(purchaseQuery);
+        const fetchedProducts: Product[] = [];
 
-        if (!purchaseSnapshot.empty) {
-          setStatus("exists");
-          setLoaded(true);
-          return;
+        if (sessionId) {
+          // Stripe Purchase Flow
+          const stripeQuery = query(purchasesRef, where("sessionId", "==", sessionId));
+          const snapshot = await getDocs(stripeQuery);
+
+          if (snapshot.empty) throw new Error("No purchase found for this session.");
+
+          for (const docSnap of snapshot.docs) {
+            const { productId } = docSnap.data();
+            const productRef = doc(db, "products", productId);
+            const productSnap = await getDoc(productRef);
+
+            if (productSnap.exists()) {
+              const data = productSnap.data();
+              fetchedProducts.push({
+                id: productId,
+                name: data.name || "Untitled Mod",
+                description: data.description || "No description available.",
+                image: data.image || "/placeholder.png",
+                price: data.price || 0,
+                author: data.author || "Unknown",
+                downloadUrl: data.downloadUrl || "",
+                game: data.game || "",
+              });
+            }
+          }
+        } else {
+          // Free Product Flow from cart doc with items array
+          const cartDocRef = doc(db, "carts", user.uid);
+          const cartDocSnap = await getDoc(cartDocRef);
+
+          if (!cartDocSnap.exists()) throw new Error("Your cart is empty.");
+
+          const cartData = cartDocSnap.data();
+          const items = cartData?.items || [];
+
+          if (items.length === 0) throw new Error("Your cart is empty.");
+
+          for (const item of items) {
+            const productId = item.productId;
+
+            const productRef = doc(db, "products", productId);
+            const productSnap = await getDoc(productRef);
+
+            if (!productSnap.exists()) {
+              console.warn(`Product ${productId} not found, skipping`);
+              continue;
+            }
+
+            const data = productSnap.data();
+
+            // Build product with exact fields needed
+            const product: Product = {
+              id: productId,
+              name: data.name,
+              description: data.description,
+              image: data.image,
+              price: data.price,
+              author: data.author,
+              downloadUrl: data.downloadUrl,
+              game: data.game,
+            };
+
+            // Check if purchase already exists for this user + product
+            const purchaseQuery = query(
+              purchasesRef,
+              where("userId", "==", user.uid),
+              where("productId", "==", product.id)
+            );
+            const existing = await getDocs(purchaseQuery);
+
+            if (existing.empty) {
+              await addDoc(purchasesRef, {
+                userId: user.uid,
+                email: user.email || null,
+                sessionId: "free",
+                productId: product.id,
+                productName: product.name,
+                author: product.author,
+                description: product.description,
+                downloadUrl: product.downloadUrl,
+                game: product.game,
+                image: product.image,
+                price: product.price,
+                timestamp: new Date().toISOString(),
+              });
+            }
+
+            fetchedProducts.push(product);
+          }
+
+          // Clear cart by setting items to empty array
+          await updateDoc(cartDocRef, { items: [] });
         }
 
-        // Record purchase in Firestore
-        for (const product of purchasedProducts) {
-          await addDoc(purchasesRef, {
-            userId: user.uid,
-            email: user.email,
-            sessionId,
-            productId: product.id,
-            productName: product.name,
-            timestamp: new Date().toISOString(),
-          });
-        }
+        if (fetchedProducts.length === 0) throw new Error("No valid products found.");
 
+        setProducts(fetchedProducts);
+        triggerConfetti();
         setStatus("success");
-
-        // Confetti celebration
-        for (let i = 0; i < 5; i++) {
-          setTimeout(() => {
-            confetti({
-              particleCount: 300,
-              spread: 100,
-              origin: { y: 0.6 },
-              colors: ["#38bdf8", "#60a5fa", "#2563eb", "#a5b4fc"],
-            });
-          }, i * 400);
-        }
-      } catch (error) {
-        console.error("Error processing purchase:", error);
+      } catch (err: any) {
+        console.error("SuccessPage Error:", err.message);
+        setErrorMessage(err.message || "Something went wrong.");
         setStatus("error");
-      } finally {
-        setLoaded(true);
       }
     };
 
-    fetchSessionAndProducts();
-  }, [user, searchParams]);
+    handlePurchase();
+  }, [sessionId, user]);
 
-  if (!loaded || !user) {
-    return <LoadingScreen message="Loading..." />;
-  }
-
-  if (products.length === 0) {
-    return (
-      <div className="min-h-screen flex flex-col bg-gray-900 text-white p-8">
-        <main className="flex-grow flex flex-col justify-center items-center">
-          <h1 className="text-3xl font-bold mb-4">No products found</h1>
-        </main>
-      </div>
-    );
-  }
+  const triggerConfetti = () => {
+    for (let i = 0; i < 5; i++) {
+      setTimeout(() => {
+        confetti({
+          particleCount: 200,
+          spread: 100,
+          origin: { y: 0.6 },
+          colors: ["#38bdf8", "#60a5fa", "#2563eb", "#a5b4fc"],
+        });
+      }, i * 400);
+    }
+  };
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-900 text-white">
-      <main className="flex-grow max-w-4xl mx-auto p-8 flex flex-col items-center text-center">
-        <motion.h1
-          className={`text-5xl font-extrabold mb-6 ${
-            status === "success"
-              ? "text-sky-400"
-              : status === "exists"
-              ? "text-yellow-400"
-              : "text-red-400"
-          }`}
-          initial={{ y: -40, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.6, ease: "easeOut" }}
-        >
-          {status === "success" && "🎉 Thank you for your purchase!"}
-          {status === "exists" && "✅ You already own this product(s)"}
-          {status === "error" && "❌ Error processing your purchase"}
-        </motion.h1>
+    <div className="max-w-6xl mx-auto px-4 py-16 text-center">
+      {status === "loading" && (
+        <div className="text-lg animate-pulse">Loading your purchase...</div>
+      )}
 
-        {products.map((product) => (
-          <motion.div
-            key={product.id}
-            className="bg-gray-800 rounded-2xl shadow-lg p-6 w-full max-w-xl flex flex-col md:flex-row items-center text-left mb-6"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.5, duration: 0.4 }}
+      {status === "error" && (
+        <div className="text-red-600">
+          <XCircle className="w-10 h-10 mx-auto mb-2" />
+          <h2 className="text-2xl font-semibold mb-2">Oops! Something went wrong.</h2>
+          <p>{errorMessage}</p>
+        </div>
+      )}
+
+      {status === "success" && (
+        <>
+          <CheckCircle className="text-green-600 w-12 h-12 mx-auto mb-4" />
+          <h1 className="text-3xl font-bold mb-4">Thanks for your purchase!</h1>
+          <p className="mb-6 text-gray-600">
+            You now own {products.length === 1 ? "this mod" : "these mods"}:
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mt-6">
+            {products.map((product) => (
+              <div
+                key={product.id}
+                className="rounded-2xl shadow-md bg-white dark:bg-zinc-900 overflow-hidden flex flex-col transition hover:shadow-xl"
+              >
+                <img
+                  src={product.image}
+                  alt={product.name}
+                  className="w-full h-48 object-cover"
+                />
+                <div className="p-4 flex-1 flex flex-col">
+                  <h2 className="text-lg font-semibold mb-1">{product.name}</h2>
+                  <p className="text-sm text-gray-600 dark:text-gray-300 mb-2 line-clamp-3">
+                    {product.description}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-auto">
+                    by {product.author}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <a
+            href="https://downloads.kimdog-modding.co.uk"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-10 inline-block bg-blue-600 hover:bg-blue-700 text-white text-base font-medium px-6 py-3 rounded-xl shadow-md transition"
           >
-            {product.image && (
-              <img
-                src={product.image}
-                alt={product.name}
-                className="w-32 h-32 object-cover rounded-xl mb-4 md:mb-0 md:mr-6 border border-gray-700"
-              />
-            )}
-            <div>
-              <h2 className="text-2xl font-bold text-white mb-2">
-                {product.name}
-              </h2>
-              {product.author && (
-                <p className="text-sm text-gray-400 mb-1">By {product.author}</p>
-              )}
-              <p className="text-base text-gray-300">
-                {product.description || "No description available."}
-              </p>
-            </div>
-          </motion.div>
-        ))}
-
-        <motion.button
-          onClick={() =>
-            window.open("https://downloads.kimdog-modding.co.uk/", "_blank")
-          }
-          className="mt-8 px-10 py-4 bg-sky-600 hover:bg-sky-700 text-white rounded-md font-semibold text-lg transition"
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.8 }}
-        >
-          Go to Library
-        </motion.button>
-      </main>
+            Go to My Downloads
+          </a>
+        </>
+      )}
     </div>
   );
 }

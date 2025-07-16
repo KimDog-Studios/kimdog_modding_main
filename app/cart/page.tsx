@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { useCart } from "../components/CartContext"; // adjust path
-import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
-import { db } from "../lib/firebase"; // adjust path
+import { useCart } from "../components/CartContext"; // adjust path to your CartContext
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "../lib/firebase"; // adjust path to your firebase config
 import { motion, AnimatePresence } from "framer-motion";
 import { loadStripe } from "@stripe/stripe-js";
 
@@ -17,11 +17,6 @@ interface Product {
   image: string;
 }
 
-interface CartItemType {
-  productId: string;
-  quantity: number;
-}
-
 interface DiscountCodeProps {
   onApply: (discountPercent: number) => void;
   disabled?: boolean;
@@ -30,95 +25,87 @@ interface DiscountCodeProps {
 function DiscountCode({ onApply, disabled = false }: DiscountCodeProps) {
   const [code, setCode] = useState("");
   const [message, setMessage] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
 
-  const applyCode = async () => {
-    setLoading(true);
-    setMessage(null);
-
-    try {
-      const codesRef = collection(db, "discount_codes");
-      const q = query(codesRef, where("code", "==", code.trim()));
-      const querySnapshot = await getDocs(q);
-
-      if (querySnapshot.empty) {
-        setMessage("Invalid discount code.");
-        onApply(0);
-      } else {
-        const doc = querySnapshot.docs[0];
-        const data = doc.data();
-
-        if (typeof data.Percentage === "number" && data.Percentage > 0) {
-          setMessage(`Discount code applied: ${data.Percentage}% off!`);
-          onApply(data.Percentage);
-        } else {
-          setMessage("Invalid discount code data.");
-          onApply(0);
-        }
-      }
-    } catch (error) {
-      console.error("Error validating discount code:", error);
-      setMessage("Failed to validate discount code.");
+  const applyDiscount = () => {
+    const c = code.trim().toLowerCase();
+    if (!c) {
+      setMessage("Please enter a discount code.");
       onApply(0);
-    } finally {
-      setLoading(false);
+      return;
+    }
+    // Example discount codes:
+    if (c === "free") {
+      onApply(100);
+      setMessage("100% discount applied!");
+    } else if (c === "half") {
+      onApply(50);
+      setMessage("50% discount applied!");
+    } else if (c === "quarter") {
+      onApply(25);
+      setMessage("25% discount applied!");
+    } else {
+      onApply(0);
+      setMessage("Invalid discount code.");
     }
   };
 
   return (
-    <div style={{ marginBottom: 24, userSelect: "none" }}>
-      <label
-        htmlFor="discountCode"
-        style={{ fontWeight: "700", fontSize: 16, marginRight: 12 }}
-      >
-        Discount Code:
-      </label>
+    <div
+      style={{
+        marginBottom: 24,
+        display: "flex",
+        gap: 12,
+        alignItems: "center",
+        userSelect: "none",
+      }}
+    >
       <input
-        id="discountCode"
         type="text"
         value={code}
         onChange={(e) => setCode(e.target.value)}
-        disabled={disabled || loading}
-        placeholder="Enter code"
+        placeholder="Enter discount code"
+        disabled={disabled}
         style={{
-          padding: "8px 12px",
+          flexGrow: 1,
+          padding: "12px 16px",
           fontSize: 16,
-          borderRadius: 8,
-          border: "1.5px solid #ccc",
-          marginRight: 8,
-          width: 160,
+          borderRadius: 12,
+          border: "1px solid #ccc",
+          fontWeight: "600",
+          userSelect: "text",
         }}
+        aria-label="Discount code input"
       />
       <button
-        onClick={applyCode}
-        disabled={disabled || loading || code.trim() === ""}
+        onClick={applyDiscount}
+        disabled={disabled}
         style={{
-          backgroundColor: PURPLE,
+          background: PURPLE,
           color: "#fff",
-          fontWeight: "700",
-          padding: "8px 16px",
-          borderRadius: 8,
           border: "none",
-          cursor: disabled || loading || code.trim() === "" ? "not-allowed" : "pointer",
+          borderRadius: 12,
+          padding: "12px 20px",
+          fontWeight: "700",
+          fontSize: 16,
+          cursor: disabled ? "not-allowed" : "pointer",
+          boxShadow: `4px 4px 6px ${PURPLE}cc, -4px -4px 6px #ffffff55`,
+          userSelect: "none",
         }}
+        aria-label="Apply discount code"
       >
-        {loading ? "Applying..." : "Apply"}
+        Apply
       </button>
-
       {message && (
-        <p
+        <span
           style={{
-            marginTop: 8,
-            fontWeight: "600",
-            color:
-              message.includes("Invalid") || message.includes("Failed")
-                ? "red"
-                : "green",
+            marginLeft: 8,
+            color: message.includes("Invalid") ? "red" : "green",
+            fontWeight: "700",
           }}
           role="alert"
         >
           {message}
-        </p>
+        </span>
       )}
     </div>
   );
@@ -129,8 +116,6 @@ export default function CartPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
-
-  // Discount state
   const [discountPercent, setDiscountPercent] = useState(0);
 
   const fetchProducts = useCallback(async () => {
@@ -169,44 +154,56 @@ export default function CartPage() {
       alert("Your cart is empty!");
       return;
     }
+
     setCheckoutLoading(true);
+
+    // Check if any paid products exist (price > 0)
+    const hasPaidItems = products.some(
+      (p) => items.find((i) => i.productId === p.id)?.quantity && p.price > 0
+    );
+
     try {
-      // Pass discount percent to backend if needed
-      const res = await fetch("/api/create-checkout-session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          items: items.map(({ productId, quantity }) => ({
-            id: productId,
-            quantity,
-          })),
-          discountPercent, // send discount to backend
-          success_url: `${window.location.origin}/success`,
-          cancel_url: `${window.location.origin}/cart`,
-        }),
-      });
+      if (hasPaidItems) {
+        // Stripe checkout for paid items
+        const res = await fetch("/api/create-checkout-session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            items: items.map(({ productId, quantity }) => ({
+              id: productId,
+              quantity,
+            })),
+            discountPercent,
+            success_url: `${window.location.origin}/success`,
+            cancel_url: `${window.location.origin}/cart`,
+          }),
+        });
 
-      const data = await res.json();
+        const data = await res.json();
 
-      if (data.error) {
-        alert(data.error);
-        setCheckoutLoading(false);
-        return;
-      }
+        if (data.error) {
+          alert(data.error);
+          setCheckoutLoading(false);
+          return;
+        }
 
-      const stripe = await stripePromise;
-      if (!stripe) {
-        alert("Stripe failed to load");
-        setCheckoutLoading(false);
-        return;
-      }
+        const stripe = await stripePromise;
+        if (!stripe) {
+          alert("Stripe failed to load");
+          setCheckoutLoading(false);
+          return;
+        }
 
-      const { error } = await stripe.redirectToCheckout({
-        sessionId: data.id,
-      });
+        const { error } = await stripe.redirectToCheckout({
+          sessionId: data.id,
+        });
 
-      if (error) {
-        alert(error.message);
+        if (error) {
+          alert(error.message);
+        }
+      } else {
+        // All free items, skip Stripe and go to success page
+        window.location.href = "/success";
       }
     } catch (err) {
       console.error("Checkout error:", err);
@@ -216,8 +213,9 @@ export default function CartPage() {
     }
   }
 
-  // Calculate total with discount
+  // Calculate subtotal for paid items only
   const subtotal = products.reduce((acc, product) => {
+    if (product.price === 0) return acc; // skip free products from subtotal
     const quantity = items.find((i) => i.productId === product.id)?.quantity || 0;
     return acc + product.price * quantity;
   }, 0);
@@ -247,10 +245,8 @@ export default function CartPage() {
         Your Cart
       </h1>
 
-      {/* Discount code input */}
       <DiscountCode onApply={setDiscountPercent} disabled={checkoutLoading} />
 
-      {/* Sticky buttons bar always visible */}
       <div
         style={{
           position: "sticky",
@@ -352,7 +348,6 @@ export default function CartPage() {
         </button>
       </div>
 
-      {/* Cart content or empty message */}
       {loading ? (
         <div
           style={{
@@ -394,6 +389,8 @@ export default function CartPage() {
                 const quantity =
                   items.find((i) => i.productId === product.id)?.quantity || 0;
 
+                const isFree = product.price === 0;
+
                 return (
                   <motion.li
                     key={product.id}
@@ -409,8 +406,12 @@ export default function CartPage() {
                       marginBottom: 32,
                       padding: 20,
                       borderRadius: 18,
-                      background: "linear-gradient(145deg, #f0f0f3, #cacde1)",
-                      boxShadow: "8px 8px 16px #bebebe, -8px -8px 16px #ffffff",
+                      background: isFree
+                        ? "linear-gradient(145deg, #e0ffe0, #cde1cd)"
+                        : "linear-gradient(145deg, #f0f0f3, #cacde1)",
+                      boxShadow: isFree
+                        ? "8px 8px 16px #a8d5a8, -8px -8px 16px #d0efd0"
+                        : "8px 8px 16px #bebebe, -8px -8px 16px #ffffff",
                     }}
                   >
                     <img
@@ -445,24 +446,35 @@ export default function CartPage() {
                         }}
                       >
                         {product.name}
+                        {isFree && (
+                          <span
+                            style={{
+                              marginLeft: 8,
+                              fontWeight: "700",
+                              fontSize: 14,
+                              color: "green",
+                            }}
+                          >
+                            (Free)
+                          </span>
+                        )}
                       </h3>
 
                       <p
                         style={{
                           fontWeight: "700",
                           fontSize: 18,
-                          color: "#444",
+                          color: isFree ? "green" : "#444",
                           marginBottom: 12,
                           userSelect: "none",
                         }}
                       >
-                        Price: ${product.price.toFixed(2)}
+                        Price: {isFree ? "Free" : `$${product.price.toFixed(2)}`}
                       </p>
 
-                      {/* Quantity input */}
                       <label
                         htmlFor={`quantity-${product.id}`}
-                        style={{ fontWeight: "700", fontSize: 16, marginBottom: 6 }}
+                        style={{ fontWeight: "600", marginBottom: 4 }}
                       >
                         Quantity:
                       </label>
@@ -470,51 +482,50 @@ export default function CartPage() {
                         id={`quantity-${product.id}`}
                         type="number"
                         min={1}
-                        max={100}
+                        max={isFree ? 1 : 99}
                         step={1}
                         value={quantity}
                         onChange={(e) => {
-                          const val = Math.min(
-                            100,
-                            Math.max(1, Number(e.target.value))
+                          const val = Math.max(
+                            1,
+                            Math.min(Number(e.target.value), isFree ? 1 : 99)
                           );
                           setItemQuantity(product.id, val);
                         }}
+                        disabled={checkoutLoading || loading || isFree}
                         style={{
-                          width: 70,
-                          borderRadius: 10,
-                          padding: "8px 12px",
-                          fontSize: 18,
-                          fontWeight: "900",
-                          border: "2px solid #6a0dad",
-                          backgroundColor: "#f9f6ff",
-                          color: "#3a0ca3",
+                          width: 60,
+                          padding: "6px 10px",
+                          borderRadius: 8,
+                          border: "1px solid #ccc",
+                          fontWeight: "700",
+                          fontSize: 16,
+                          cursor: isFree ? "not-allowed" : "auto",
+                          backgroundColor: isFree ? "#eee" : "white",
                           userSelect: "none",
-                          boxShadow: "0 0 8px rgba(106, 13, 173, 0.3)",
-                          transition: "border-color 0.3s ease, box-shadow 0.3s ease",
                         }}
-                        aria-label={`Set quantity for ${product.name}`}
+                        aria-label={`Quantity for ${product.name}`}
                       />
-                    </div>
 
-                    <button
-                      onClick={() => removeItem(product.id)}
-                      style={{
-                        backgroundColor: "transparent",
-                        border: "none",
-                        cursor: "pointer",
-                        padding: 12,
-                        alignSelf: "flex-start",
-                        color: PURPLE,
-                        fontWeight: "900",
-                        fontSize: 20,
-                        userSelect: "none",
-                      }}
-                      aria-label={`Remove ${product.name} from cart`}
-                      title={`Remove ${product.name}`}
-                    >
-                      &times;
-                    </button>
+                      <button
+                        onClick={() => removeItem(product.id)}
+                        disabled={checkoutLoading || loading}
+                        style={{
+                          marginTop: 12,
+                          background: "#e53935",
+                          border: "none",
+                          color: "white",
+                          padding: "8px 14px",
+                          fontWeight: "700",
+                          borderRadius: 12,
+                          cursor: "pointer",
+                          width: 110,
+                        }}
+                        aria-label={`Remove ${product.name} from cart`}
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </motion.li>
                 );
               })}
@@ -523,44 +534,25 @@ export default function CartPage() {
 
           <div
             style={{
-              fontWeight: "700",
-              fontSize: 24,
-              color: "#222",
               marginTop: 24,
-              userSelect: "none",
-              display: "flex",
-              flexDirection: "column",
-              gap: 4,
               textAlign: "right",
+              fontWeight: "700",
+              fontSize: 18,
+              color: "#222",
             }}
           >
-            <p>Subtotal: ${subtotal.toFixed(2)}</p>
+            <p style={{ margin: 0 }}>
+              Subtotal: ${subtotal.toFixed(2)}
+            </p>
             {discountPercent > 0 && (
               <>
-                <p style={{ color: "green" }}>
+                <p style={{ margin: 0, color: "green" }}>
                   Discount ({discountPercent}%): -${discountAmount.toFixed(2)}
                 </p>
-                <p
-                  style={{
-                    fontWeight: "900",
-                    fontSize: 28,
-                    color: PURPLE,
-                  }}
-                >
+                <p style={{ margin: "6px 0 0", fontSize: 22, fontWeight: "900" }}>
                   Total: ${totalAfterDiscount.toFixed(2)}
                 </p>
               </>
-            )}
-            {discountPercent === 0 && (
-              <p
-                style={{
-                  fontWeight: "900",
-                  fontSize: 28,
-                  color: PURPLE,
-                }}
-              >
-                Total: ${subtotal.toFixed(2)}
-              </p>
             )}
           </div>
         </>
@@ -569,18 +561,19 @@ export default function CartPage() {
   );
 }
 
-// Animation variants for framer-motion
 const containerVariants = {
-  hidden: { opacity: 0, scale: 0.95 },
+  hidden: { opacity: 0, y: 20 },
   visible: {
     opacity: 1,
-    scale: 1,
-    transition: { staggerChildren: 0.1 },
+    y: 0,
+    transition: {
+      staggerChildren: 0.1,
+    },
   },
 };
 
 const itemVariants = {
-  hidden: { opacity: 0, y: 15 },
+  hidden: { opacity: 0, y: 20 },
   visible: { opacity: 1, y: 0 },
-  hover: { scale: 1.02 },
+  hover: { scale: 1.03 },
 };
