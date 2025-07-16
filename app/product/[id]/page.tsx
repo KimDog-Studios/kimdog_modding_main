@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter, notFound } from "next/navigation";
 import Image from "next/image";
-import NavBar from "@/app/components/NavBar/NavBar";
 import LoadingScreen from "@/app/components/LoadingScreen"; // <-- import your new loading screen here
 import {
   collection,
@@ -160,7 +159,6 @@ export default function ProductPage() {
 
   return (
     <div className="min-h-screen text-white flex flex-col">
-      <NavBar user={user} onLogout={handleLogout} />
 
       <main className="flex-grow max-w-7xl mx-auto px-6 py-12 grid grid-cols-1 md:grid-cols-2 gap-12">
         {/* Product image */}

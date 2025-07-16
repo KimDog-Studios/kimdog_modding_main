@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { User, onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from '../lib/firebase'; // adjust this path as needed
-import NavBar from '../components/NavBar/NavBar';
 import LoadingScreen from '../components/LoadingScreen';
 
 export default function ContactPage() {
@@ -28,7 +27,6 @@ export default function ContactPage() {
 
   return (
     <div>
-      <NavBar user={user} onLogout={handleLogout} />
       <main className="max-w-4xl mx-auto px-6 py-20 text-white">
         <h1 className="text-4xl font-bold text-center mb-6">Contact Us</h1>
         <p className="text-center text-purple-300 mb-12">

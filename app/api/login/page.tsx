@@ -1,7 +1,6 @@
 "use client";
 import React from "react";
 import FancyLogin from "../../components/AuthForm";
-import NavigationBar from "../../components/NavBar/NavBar";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import { useRouter } from "next/navigation";
 
@@ -24,7 +23,6 @@ export default function Page() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-r from-purple-900 via-indigo-900 to-black p-4">
-      <NavigationBar user={user} onLogout={() => {}} />
 
       <main className="flex-grow flex items-center justify-center">
         {!user ? (

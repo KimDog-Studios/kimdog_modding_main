@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import NavigationBar from "./components/NavBar/NavBar";
+// import NavigationBar from "./components/NavBar/NavBar";  // Removed import
 import Products from "./components/Products/Products";
 import LoadingScreen from "./components/LoadingScreen";
 import { auth } from "./lib/firebase";
@@ -61,17 +61,7 @@ export default function Home() {
 
   return (
     <div>
-      {/* NavBar fade down */}
-      <motion.div
-        initial={{ y: -60, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.6, ease: "easeOut" }}
-      >
-        <NavigationBar
-          user={user}
-          onLogout={() => setShowLogoutConfirm(true)}
-        />
-      </motion.div>
+      {/* NavBar removed */}
 
       {/* Products scroll-in animation */}
       <motion.div
