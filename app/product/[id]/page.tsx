@@ -171,7 +171,7 @@ export default function ProductPage() {
     }
     localStorage.setItem("purchasedProductId", productId);
     alert(`Added ${product?.name} to your library!`);
-    router.push("/product/thankyou");
+    router.push("/success");
   }, [isOwned, productId, product?.name, router]);
 
   if (loading || authLoading) {
